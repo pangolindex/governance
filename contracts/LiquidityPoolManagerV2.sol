@@ -27,9 +27,6 @@ contract LiquidityPoolManagerV2 is Ownable, ReentrancyGuard {
     // Map of pools to weights
     mapping(address => uint) public weights;
 
-    // Running sum of weights map
-    uint public totalWeight;
-
     // Fields to control potential fee splitting
     bool public splitPools;
     uint public avaxSplit;
@@ -142,7 +139,6 @@ contract LiquidityPoolManagerV2 is Ownable, ReentrancyGuard {
         stakes[pair] = stakeContract;
 
         weights[pair] = weight;
-        totalWeight = totalWeight.add(weight);
 
         // Add as an AVAX or PNG pair
         if (token0 == png || token1 == png) {
@@ -175,7 +171,6 @@ contract LiquidityPoolManagerV2 is Ownable, ReentrancyGuard {
         address token1 = IPangolinPair(pair).token1();
 
         stakes[pair] = address(0);
-        totalWeight = totalWeight.sub(weights[pair]);
         weights[pair] = 0;
 
         if (token0 == png || token1 == png) {
@@ -196,9 +191,7 @@ contract LiquidityPoolManagerV2 is Ownable, ReentrancyGuard {
     function changeWeight(address pair, uint weight) external onlyOwner {
         require(weights[pair] > 0, 'LiquidityPoolManager::changeWeight: Pair not whitelisted');
         require(weight > 0, 'LiquidityPoolManager::changeWeight: Remove pool instead');
-        totalWeight = totalWeight.sub(weights[pair]);
         weights[pair] = weight;
-        totalWeight = totalWeight.add(weight);
     }
 
     /**
@@ -216,6 +209,7 @@ contract LiquidityPoolManagerV2 is Ownable, ReentrancyGuard {
      */
     function activateFeeSplit(uint avaxSplit_, uint pngSplit_) external onlyOwner {
         require(avaxSplit_.add(pngSplit_) == 100, "LiquidityPoolManager::activateFeeSplit: Split doesn't add to 100");
+        require(!(avaxSplit_ == 100 || pngSplit_ == 100), "LiquidityPoolManager::activateFeeSplit: Split can't be 100/0");
         splitPools = true;
         avaxSplit = avaxSplit_;
         pngSplit = pngSplit_;

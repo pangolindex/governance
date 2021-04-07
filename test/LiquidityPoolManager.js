@@ -448,24 +448,6 @@ describe('LiquidityPoolManager', function () {
             );
         });
 
-        it('TotalWeight set weight properly', async function () {
-            // Check pools are empty
-            expect(await this.lpManager.isWhitelisted(this.mockPairAvax.address)).to.be.false;
-            expect(await this.lpManager.isAvaxPair(this.mockPairAvax.address)).to.be.false;
-            expect(await this.lpManager.isPngPair(this.mockPairAvax.address)).to.be.false;
-            expect(await this.lpManager.avaxPngPair()).to.equal(ethers.constants.AddressZero);
-
-            // Setup mocks
-            await this.mockPairAvax.givenMethodReturnAddress(token0, this.mockWavax.address);
-            await this.mockPairAvax.givenMethodReturnAddress(token1, this.altCoin.address);
-
-            // Whitelist pool
-            await this.lpManager.addWhitelistedPool(this.mockPairAvax.address, 5);
-
-            // Check pool added correctly
-            expect(await this.lpManager.totalWeight()).to.equal(5);
-        });
-
         it('AVAX-PNG Pool is a PNG Pool', async function () {
             // Check pools are empty
             expect(await this.lpManager.isWhitelisted(this.mockPairAvaxPng.address)).to.be.false;
@@ -846,25 +828,6 @@ describe('LiquidityPoolManager', function () {
             expect(await this.lpManager.weights(this.mockPairAvax.address)).to.equal(0);
         });
 
-        it('Total weight reduced', async function () {
-            // Setup mocks
-            await this.mockPairAvax.givenMethodReturnAddress(token0, this.mockWavax.address);
-            await this.mockPairAvax.givenMethodReturnAddress(token1, this.altCoin.address);
-
-            // Whitelist pool
-            await this.lpManager.addWhitelistedPool(this.mockPairAvax.address, 5);
-
-            // Check pool added correctly
-            expect(await this.lpManager.weights(this.mockPairAvax.address)).to.equal(5);
-            expect(await this.lpManager.totalWeight()).to.equal(5);
-
-            // Remove pool
-            await this.lpManager.removeWhitelistedPool(this.mockPairAvax.address);
-
-            // Check total weight reduced
-            expect(await this.lpManager.totalWeight()).to.equal(0);
-        });
-
         it('Remove AVAX/PNG Pool', async function () {
             // Setup mocks
             await this.mockPairAvaxPng.givenMethodReturnAddress(token0, this.mockWavax.address);
@@ -904,46 +867,6 @@ describe('LiquidityPoolManager', function () {
 
             // Check weight set correctly
             expect(await this.lpManager.weights(this.mockPairAvax.address)).to.equal(5);
-        });
-
-        it('Total weight adjusted up', async function () {
-            // Setup mocks
-            await this.mockPairAvax.givenMethodReturnAddress(token0, this.mockWavax.address);
-            await this.mockPairAvax.givenMethodReturnAddress(token1, this.altCoin.address);
-
-            // Whitelist pool
-            await this.lpManager.addWhitelistedPool(this.mockPairAvax.address, 1);
-
-            // Check weight set correctly
-            expect(await this.lpManager.weights(this.mockPairAvax.address)).to.equal(1);
-            expect(await this.lpManager.totalWeight()).to.equal(1);
-
-            // Change weight
-            await this.lpManager.changeWeight(this.mockPairAvax.address, 5);
-
-            // Check weight set correctly
-            expect(await this.lpManager.weights(this.mockPairAvax.address)).to.equal(5);
-            expect(await this.lpManager.totalWeight()).to.equal(5);
-        });
-
-        it('Total weight adjusted down', async function () {
-            // Setup mocks
-            await this.mockPairAvax.givenMethodReturnAddress(token0, this.mockWavax.address);
-            await this.mockPairAvax.givenMethodReturnAddress(token1, this.altCoin.address);
-
-            // Whitelist pool
-            await this.lpManager.addWhitelistedPool(this.mockPairAvax.address, 5);
-
-            // Check weight set correctly
-            expect(await this.lpManager.weights(this.mockPairAvax.address)).to.equal(5);
-            expect(await this.lpManager.totalWeight()).to.equal(5);
-
-            // Change weight
-            await this.lpManager.changeWeight(this.mockPairAvax.address, 1);
-
-            // Check weight set correctly
-            expect(await this.lpManager.weights(this.mockPairAvax.address)).to.equal(1);
-            expect(await this.lpManager.totalWeight()).to.equal(1);
         });
 
         it('Pair not whitelisted', async function () {
@@ -1040,6 +963,28 @@ describe('LiquidityPoolManager', function () {
 
             await expect(this.lpManager.activateFeeSplit(30, 30)).to.be.revertedWith(
                 "LiquidityPoolManager::activateFeeSplit: Split doesn't add to 100"
+            );
+        });
+
+        it('Avax 100', async function () {
+            // check false default
+            expect(await this.lpManager.splitPools()).to.be.false;
+            expect(await this.lpManager.avaxSplit()).to.equal(0);
+            expect(await this.lpManager.pngSplit()).to.equal(0);
+
+            await expect(this.lpManager.activateFeeSplit(100, 0)).to.be.revertedWith(
+                "LiquidityPoolManager::activateFeeSplit: Split can't be 100/0"
+            );
+        });
+
+        it('PNG 100', async function () {
+            // check false default
+            expect(await this.lpManager.splitPools()).to.be.false;
+            expect(await this.lpManager.avaxSplit()).to.equal(0);
+            expect(await this.lpManager.pngSplit()).to.equal(0);
+
+            await expect(this.lpManager.activateFeeSplit(0, 100)).to.be.revertedWith(
+                "LiquidityPoolManager::activateFeeSplit: Split can't be 100/0"
             );
         });
 
@@ -3665,6 +3610,202 @@ describe('LiquidityPoolManager', function () {
             await this.lpManager.addWhitelistedPool(this.mockPairAvax.address, avaxWeight);
             await this.lpManager.addWhitelistedPool(this.mockPairAvaxPng.address, avaxPngWeight);
             await this.lpManager.addWhitelistedPool(this.mockPairAvax2.address, avax2Weight);
+
+            // Remove pool
+            await this.lpManager.removeWhitelistedPool(this.mockPairAvaxPng.address);
+
+            // Check balances
+            expect(await this.png.balanceOf(this.mockPairAvax.address)).to.equal(0);
+            expect(await this.png.balanceOf(this.mockPairPng.address)).to.equal(0);
+            expect(await this.png.balanceOf(this.mockPairAvaxPng.address)).to.equal(0);
+            expect(await this.png.balanceOf(this.mockPairAvax2.address)).to.equal(0);
+            expect(await this.png.balanceOf(this.lpManager.address)).to.equal(vestAmount);
+
+            // distribute
+            await this.lpManager.calculateReturns();
+            await this.lpManager.distributeTokens();
+
+            const stakeContract1 = await this.lpManager.stakes(this.mockPairAvax.address);
+            const stakeContract2 = await this.lpManager.stakes(this.mockPairPng.address);
+            const stakeContract3 = await this.lpManager.stakes(this.mockPairAvaxPng.address);
+            const stakeContract4 = await this.lpManager.stakes(this.mockPairAvax2.address);
+
+            // Check balances
+            expect(await this.png.balanceOf(stakeContract1)).to.equal(expectedAvaxReward);
+            expect(await this.png.balanceOf(stakeContract2)).to.equal(expectedPngReward);
+            expect(await this.png.balanceOf(stakeContract3)).to.equal(expectedAvaxPngReward);
+            expect(await this.png.balanceOf(stakeContract4)).to.equal(expectedAvax2Reward);
+            expect(await this.png.balanceOf(this.lpManager.address)).to.equal(leftover);
+        });
+
+        it('Equal split, change weights', async function () {
+            // Test Parameters
+            const vestAmount = 1000;
+            const avaxSplit = 50;
+            const pngSplit = 50;
+            const avaxWeight = 6
+            const pngWeight = 1
+            const avaxPngReserveAvax = 300;
+            const avaxPngReservePng = 1000;
+
+            // doesn't depend on liqudity, so should be same
+            const expectedAvaxReward = Math.floor(vestAmount/2);
+            const expectedPngReward = Math.floor(vestAmount/2);
+            const leftover = 0;
+
+            // Vest tokens
+
+            await this.png.transfer(this.lpManager.address, vestAmount);
+            await this.mockTreasuryVester.givenMethodReturnUint(claimMethod, vestAmount);
+            await this.lpManager.vestAllocation();
+            expect(await this.lpManager.unallocatedPng()).to.equal(vestAmount);
+
+            // Initialize split
+
+            await this.lpManager.activateFeeSplit(avaxSplit, pngSplit);
+
+            // Initialize pools
+            await this.mockPairPng.givenMethodReturnAddress(token0, this.png.address);
+            await this.mockPairPng.givenMethodReturnAddress(token1, this.altCoin.address);
+
+            await this.mockPairAvax.givenMethodReturnAddress(token0, this.mockWavax.address);
+            await this.mockPairAvax.givenMethodReturnAddress(token1, this.altCoin.address);
+
+            const avaxPoolReserveAvax = BigNumber.from('1000').mul(oneToken);
+            const avaxPoolReserveAltcoin = BigNumber.from('1000').mul(oneToken);
+            const pngPoolReservePng = BigNumber.from('1000').mul(oneToken);
+            const pngPoolReserveAltcoin = BigNumber.from('1000').mul(oneToken);
+
+            const timestamp = 1608676399;
+
+            const reserveReturnAvax = web3.eth.abi.encodeParameters(
+                ["uint112", "uint112", "uint32"],
+                [avaxPoolReserveAvax, avaxPoolReserveAltcoin, timestamp]);
+            const reserveReturnPng = web3.eth.abi.encodeParameters(
+                ["uint112", "uint112", "uint32"],
+                [pngPoolReservePng, pngPoolReserveAltcoin, timestamp]);
+            await this.mockPairPng.givenMethodReturn(getReserves, reserveReturnPng);
+            await this.mockPairAvax.givenMethodReturn(getReserves, reserveReturnAvax);
+
+            // Initialize AVAX-PNG pair
+            await this.mockPairAvaxPng.givenMethodReturnAddress(token0, this.wavax.address);
+            await this.mockPairAvaxPng.givenMethodReturnAddress(token1, this.png.address);
+
+            const reserveReturnAvaxPng = web3.eth.abi.encodeParameters(
+                ["uint112", "uint112", "uint32"],
+                [avaxPngReserveAvax, avaxPngReservePng, timestamp]);
+            await this.mockPairAvaxPng.givenMethodReturn(getReserves, reserveReturnAvaxPng);
+            await this.lpManager.setAvaxPngPair(this.mockPairAvaxPng.address);
+
+            // Whitelist pool
+            await this.lpManager.addWhitelistedPool(this.mockPairPng.address, 1);
+            await this.lpManager.addWhitelistedPool(this.mockPairAvax.address, 1);
+
+            // Change weights
+            await this.lpManager.changeWeight(this.mockPairAvax.address, avaxWeight);
+            await this.lpManager.changeWeight(this.mockPairPng.address, pngWeight);
+
+            // Check balances
+            expect(await this.png.balanceOf(this.mockPairAvax.address)).to.equal(0);
+            expect(await this.png.balanceOf(this.mockPairPng.address)).to.equal(0);
+            expect(await this.png.balanceOf(this.lpManager.address)).to.equal(vestAmount);
+
+            // distribute
+            await this.lpManager.calculateReturns();
+            await this.lpManager.distributeTokens();
+
+            const stakeContract1 = await this.lpManager.stakes(this.mockPairAvax.address);
+            const stakeContract2 = await this.lpManager.stakes(this.mockPairPng.address);
+
+            // Check balances
+            expect(await this.png.balanceOf(stakeContract1)).to.equal(expectedAvaxReward);
+            expect(await this.png.balanceOf(stakeContract2)).to.equal(expectedPngReward);
+            expect(await this.png.balanceOf(this.lpManager.address)).to.equal(leftover);
+        });
+
+        it('Change weights, Multiple tokens, different split', async function () {
+            // Test Parameters
+            const vestAmount = 1000;
+            const avaxSplit = 25;
+            const pngSplit = 75;
+            const avaxWeight = 30
+            const avaxPngWeight = 10
+            const pngWeight = 40
+            const avax2Weight = 10
+
+            const avaxPoolReserveAvax = BigNumber.from('1000').mul(oneToken);
+            const avaxPoolReserveAltcoin = BigNumber.from('1000').mul(oneToken);
+
+            const pngPoolReservePng = BigNumber.from('1000').mul(oneToken);
+            const pngPoolReserveAltcoin = BigNumber.from('1000').mul(oneToken);
+
+            const avaxPool2ReservePng = BigNumber.from('1000').mul(oneToken);
+            const avaxPool2ReserveAltcoin = BigNumber.from('1000').mul(oneToken);
+
+            const avaxPngReserveAvax = BigNumber.from('1000').mul(oneToken);
+            const avaxPngReservePng = BigNumber.from('1000').mul(oneToken);
+
+            const expectedAvaxReward = 187;
+            const expectedAvaxPngReward = 0;
+            const expectedPngReward = 750;
+            const expectedAvax2Reward = 62;
+            const leftover = 1;
+
+            // Vest tokens
+            await this.png.transfer(this.lpManager.address, vestAmount);
+            await this.mockTreasuryVester.givenMethodReturnUint(claimMethod, vestAmount);
+            await this.lpManager.vestAllocation();
+            expect(await this.lpManager.unallocatedPng()).to.equal(vestAmount);
+
+            // Initialize split
+            await this.lpManager.activateFeeSplit(avaxSplit, pngSplit);
+
+            // Initialize pools
+            await this.mockPairPng.givenMethodReturnAddress(token0, this.png.address);
+            await this.mockPairPng.givenMethodReturnAddress(token1, this.altCoin.address);
+
+            await this.mockPairAvax.givenMethodReturnAddress(token0, this.mockWavax.address);
+            await this.mockPairAvax.givenMethodReturnAddress(token1, this.altCoin.address);
+
+            await this.mockPairAvax2.givenMethodReturnAddress(token1, this.mockWavax.address);
+            await this.mockPairAvax2.givenMethodReturnAddress(token0, this.altCoin2.address);
+
+            const timestamp = 1608676399;
+
+            const reserveReturnAvax = web3.eth.abi.encodeParameters(
+                ["uint112", "uint112", "uint32"],
+                [avaxPoolReserveAvax, avaxPoolReserveAltcoin, timestamp]);
+            const reserveReturnPng = web3.eth.abi.encodeParameters(
+                ["uint112", "uint112", "uint32"],
+                [pngPoolReservePng, pngPoolReserveAltcoin, timestamp]);
+            const reserveReturnAvax2 = web3.eth.abi.encodeParameters(
+                    ["uint112", "uint112", "uint32"],
+                    [avaxPool2ReserveAltcoin, avaxPool2ReservePng, timestamp]);
+            await this.mockPairPng.givenMethodReturn(getReserves, reserveReturnPng);
+            await this.mockPairAvax.givenMethodReturn(getReserves, reserveReturnAvax);
+            await this.mockPairAvax2.givenMethodReturn(getReserves, reserveReturnAvax2);
+
+            // Initialize AVAX-PNG pair
+            await this.mockPairAvaxPng.givenMethodReturnAddress(token0, this.mockWavax.address);
+            await this.mockPairAvaxPng.givenMethodReturnAddress(token1, this.png.address);
+
+            const reserveReturnAvaxPng = web3.eth.abi.encodeParameters(
+                ["uint112", "uint112", "uint32"],
+                [avaxPngReserveAvax, avaxPngReservePng, timestamp]);
+            await this.mockPairAvaxPng.givenMethodReturn(getReserves, reserveReturnAvaxPng);
+            await this.lpManager.setAvaxPngPair(this.mockPairAvaxPng.address);
+
+            // Whitelist pool
+            await this.lpManager.addWhitelistedPool(this.mockPairPng.address, 1);
+            await this.lpManager.addWhitelistedPool(this.mockPairAvax.address, 1);
+            await this.lpManager.addWhitelistedPool(this.mockPairAvaxPng.address, 1);
+            await this.lpManager.addWhitelistedPool(this.mockPairAvax2.address, 1);
+
+            // Change weights
+            await this.lpManager.changeWeight(this.mockPairPng.address, pngWeight);
+            await this.lpManager.changeWeight(this.mockPairAvax.address, avaxWeight);
+            await this.lpManager.changeWeight(this.mockPairAvaxPng.address, avaxPngWeight);
+            await this.lpManager.changeWeight(this.mockPairAvax2.address, avax2Weight);
 
             // Remove pool
             await this.lpManager.removeWhitelistedPool(this.mockPairAvaxPng.address);
