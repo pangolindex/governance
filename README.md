@@ -18,6 +18,8 @@ GovernorAlpha:     `0xb0Ff2b1047d9E8d294c2eD798faE3fA817F43Ee1`
 
 LiquidityPoolManager:         `0x05191198A2047c1Ad440161123B29e839B219476`
 
+LiquidityPoolManagerV2:       `0x912b5D41656048Ef681eFa9D32488a3fFE397994`
+
 ## Attribution
 
 Forked from
