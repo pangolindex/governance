@@ -7,3 +7,6 @@ etc/
 tenderly.yaml
 coverage/
 coverage.json
+.idea/
+
+package-lock.json
