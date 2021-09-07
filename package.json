@@ -11,7 +11,8 @@
     "test": "npx hardhat test",
     "lint": "solium -d contracts",
     "prepublishOnly": "yarn test",
-    "publish": "npm publish"
+    "publish": "npm publish",
+    "fork": "npx hardhat node --fork https://api.avax.network/ext/bc/C/rpc"
   },
   "devDependencies": {
     "@gnosis.pm/mock-contract": "^4.0.0",
