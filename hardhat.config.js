@@ -68,7 +68,8 @@ module.exports = {
   networks: {
     hardhat: {
       gasPrice: 225000000000,
-      chainId: 43114
+      chainId: 43114,
+      initialDate: "2021-01-01" // Used for tests
     },
     local: {
       url: 'http://127.0.0.1:8545',
