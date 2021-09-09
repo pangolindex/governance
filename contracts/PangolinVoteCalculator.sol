@@ -102,6 +102,8 @@ interface IPangolinERC20 {
 }
 
 interface IStakingRewards {
+    function rewardsToken() external view returns (address);
+    function stakingToken() external view returns (address);
     function balanceOf(address owner) external view returns (uint);
     function earned(address account) external view returns (uint);
 }
@@ -117,16 +119,16 @@ contract PangolinVoteCalculator is Ownable {
         liquidityManager = ILiquidityPoolManagerV2(_liquidityManager);
     }
 
-    function getVotesFromPairs(address voter, address[] calldata pairs) external view returns (uint votes) {
-        for (uint i; i<pairs.length; i++) {
-            IPangolinPair pair = IPangolinPair(pairs[i]);
-            IStakingRewards staking = IStakingRewards(liquidityManager.stakes(pairs[i]));
+    function getVotesFromFarming(address voter, address[] calldata farms) external view returns (uint votes) {
+        for (uint i; i<farms.length; i++) {
+            IPangolinPair pair = IPangolinPair(farms[i]);
+            IStakingRewards staking = IStakingRewards(liquidityManager.stakes(farms[i]));
 
             // Handle pairs that are no longer whitelisted
             if (address(staking) == address(0)) continue;
 
-            uint pair_total_PNG = png.balanceOf(pairs[i]);
-            uint pair_total_PGL = pair.totalSupply();
+            uint pair_total_PNG = png.balanceOf(farms[i]);
+            uint pair_total_PGL = pair.totalSupply(); // Could initially be 0 in rare situations
 
             uint PGL_hodling = pair.balanceOf(voter);
             uint PGL_staking = staking.balanceOf(voter);
@@ -134,6 +136,18 @@ contract PangolinVoteCalculator is Ownable {
             uint pending_PNG = staking.earned(voter);
 
             votes += ((PGL_hodling + PGL_staking) * pair_total_PNG) / pair_total_PGL + pending_PNG;
+        }
+    }
+
+    function getVotesFromStaking(address voter, address[] calldata stakes) external view returns (uint votes) {
+        for (uint i; i<stakes.length; i++) {
+            IStakingRewards staking = IStakingRewards(stakes[i]);
+
+            uint staked_PNG = staking.stakingToken() == address(png) ? staking.balanceOf(voter) : uint(0);
+
+            uint pending_PNG = staking.rewardsToken() == address(png) ? staking.earned(voter) : uint(0);
+
+            votes += (staked_PNG + pending_PNG);
         }
     }
 
