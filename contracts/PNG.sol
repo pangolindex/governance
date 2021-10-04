@@ -1,7 +1,7 @@
 pragma solidity ^0.5.16;
 pragma experimental ABIEncoderV2;
 
-import "./SafeMath.sol";
+import "./libraries/SafeMath.sol";
 
 contract Png {
     /// @notice EIP-20 token name for this token
