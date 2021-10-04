@@ -5,10 +5,9 @@ pragma experimental ABIEncoderV2;
 
 import "@boringcrypto/boring-solidity/contracts/libraries/BoringMath.sol";
 import "@boringcrypto/boring-solidity/contracts/BoringBatchable.sol";
-import "@boringcrypto/boring-solidity/contracts/BoringOwnable.sol";
+import "openzeppelin-contracts-legacy/access/Ownable.sol";
 import "./libraries/SignedSafeMath.sol";
 import "./interfaces/IRewarder.sol";
-import "./interfaces/IMasterChef.sol";
 
 interface IMigratorChef {
     // Take the current LP token address and return the new LP token address.
@@ -21,7 +20,7 @@ interface IMigratorChef {
 /// The idea for this MasterChef V2 (MCV2) contract is therefore to be the owner of a dummy token
 /// that is deposited into the MasterChef V1 (MCV1) contract.
 /// The allocation point for this pool on MCV1 is the total allocation point for all pools that receive double incentives.
-contract MiniChefV2 is BoringOwnable, BoringBatchable {
+contract MiniChefV2 is Ownable {
     using BoringMath for uint256;
     using BoringMath128 for uint128;
     using BoringERC20 for IERC20;
@@ -48,6 +47,7 @@ contract MiniChefV2 is BoringOwnable, BoringBatchable {
     IERC20 public immutable SUSHI;
     // @notice The migrator contract. It has a lot of power. Can only be set through governance (owner).
     IMigratorChef public migrator;
+    bool public migrationDisabled;
 
     /// @notice Info of each MCV2 pool.
     PoolInfo[] public poolInfo;
@@ -62,11 +62,17 @@ contract MiniChefV2 is BoringOwnable, BoringBatchable {
     /// @dev Tokens added
     mapping (address => bool) public addedTokens;
 
+    /// @dev Addresses allowed to change rewardsExpiration duration
+    mapping (address => bool) private funder;
+
     /// @dev Total allocation points. Must be the sum of all allocation points in all pools.
     uint256 public totalAllocPoint;
 
     uint256 public sushiPerSecond;
     uint256 private constant ACC_SUSHI_PRECISION = 1e12;
+
+    /// @dev Block time when the rewards per second stops
+    uint256 rewardsExpiration;
 
     event Deposit(address indexed user, uint256 indexed pid, uint256 amount, address indexed to);
     event Withdraw(address indexed user, uint256 indexed pid, uint256 amount, address indexed to);
@@ -75,11 +81,18 @@ contract MiniChefV2 is BoringOwnable, BoringBatchable {
     event LogPoolAddition(uint256 indexed pid, uint256 allocPoint, IERC20 indexed lpToken, IRewarder indexed rewarder);
     event LogSetPool(uint256 indexed pid, uint256 allocPoint, IRewarder indexed rewarder, bool overwrite);
     event LogUpdatePool(uint256 indexed pid, uint64 lastRewardTime, uint256 lpSupply, uint256 accSushiPerShare);
+    event LogMigratorSet(address migrator);
+    event LogMigratorDisabled();
+    event LogMigrate(uint256 pid);
     event LogSushiPerSecond(uint256 sushiPerSecond);
+    event LogRewardsExpiration(uint256 rewardsExpiration);
+    event LogFunderAdded(address funder);
+    event LogFunderRemoved(address funder);
 
     /// @param _sushi The SUSHI token contract address.
-    constructor(IERC20 _sushi) public {
+    constructor(IERC20 _sushi, address _firstOwner) public {
         SUSHI = _sushi;
+        transferOwnership(_firstOwner);
     }
 
     /// @notice Returns the number of MCV2 pools.
@@ -87,24 +100,75 @@ contract MiniChefV2 is BoringOwnable, BoringBatchable {
         pools = poolInfo.length;
     }
 
+    /// @notice Returns the status of an address as a funder
+    function isFunder(address _funder) external view returns (bool allowed) {
+        allowed = funder[_funder];
+    }
+
+    /// @notice Add a single reward pool after appropriately updating all pools
+    function addPool(uint256 _allocPoint, IERC20 _lpToken, IRewarder _rewarder) external onlyOwner {
+        massUpdateAllPools();
+        add(_allocPoint, _lpToken, _rewarder);
+    }
+
+
+    /// @notice Add multiple reward pools after appropriately updating all pools
+    function addPools(uint256[] calldata _allocPoints, IERC20[] calldata _lpTokens, IRewarder[] calldata _rewarders) external onlyOwner {
+        require(
+            _allocPoints.length == _lpTokens.length
+            && _lpTokens.length == _rewarders.length,
+            "MiniChefV2: invalid parameter lengths"
+        );
+
+        massUpdateAllPools();
+
+        uint256 len = _allocPoints.length;
+        for (uint256 i = 0; i < len; ++i) {
+            add(_allocPoints[i], _lpTokens[i], _rewarders[i]);
+        }
+    }
+
     /// @notice Add a new LP to the pool. Can only be called by the owner.
     /// DO NOT add the same LP token more than once. Rewards will be messed up if you do.
     /// @param allocPoint AP of the new pool.
     /// @param _lpToken Address of the LP ERC-20 token.
     /// @param _rewarder Address of the rewarder delegate.
-    function add(uint256 allocPoint, IERC20 _lpToken, IRewarder _rewarder) public onlyOwner {
+    function add(uint256 allocPoint, IERC20 _lpToken, IRewarder _rewarder) internal {
         require(addedTokens[address(_lpToken)] == false, "Token already added");
         totalAllocPoint = totalAllocPoint.add(allocPoint);
         lpToken.push(_lpToken);
         rewarder.push(_rewarder);
 
         poolInfo.push(PoolInfo({
-        allocPoint: allocPoint.to64(),
-        lastRewardTime: block.timestamp.to64(),
-        accSushiPerShare: 0
+            allocPoint: allocPoint.to64(),
+            lastRewardTime: block.timestamp.to64(),
+            accSushiPerShare: 0
         }));
         addedTokens[address(_lpToken)] = true;
         emit LogPoolAddition(lpToken.length.sub(1), allocPoint, _lpToken, _rewarder);
+    }
+
+    /// @notice Change information for one pool after appropriately updating all pools
+    function setPool(uint256 _pid, uint256 _allocPoint, IRewarder _rewarder, bool overwrite) external onlyOwner {
+        massUpdateAllPools();
+        set(_pid, _allocPoint, _rewarder, overwrite);
+    }
+
+    /// @notice Change information for multiple pools after appropriately updating all pools
+    function setPools(uint256[] calldata pids, uint256[] calldata allocPoints, IRewarder[] calldata rewarders, bool[] calldata overwrites) external onlyOwner {
+        require(
+            pids.length == allocPoints.length
+            && allocPoints.length == rewarders.length
+            && rewarders.length == overwrites.length,
+            "MiniChefV2: invalid parameter lengths"
+        );
+
+        massUpdateAllPools();
+
+        uint256 len = pids.length;
+        for (uint256 i = 0; i < len; ++i) {
+            set(pids[i], allocPoints[i], rewarders[i], overwrites[i]);
+        }
     }
 
     /// @notice Update the given pool's SUSHI allocation point and `IRewarder` contract. Can only be called by the owner.
@@ -112,36 +176,40 @@ contract MiniChefV2 is BoringOwnable, BoringBatchable {
     /// @param _allocPoint New AP of the pool.
     /// @param _rewarder Address of the rewarder delegate.
     /// @param overwrite True if _rewarder should be `set`. Otherwise `_rewarder` is ignored.
-    function set(uint256 _pid, uint256 _allocPoint, IRewarder _rewarder, bool overwrite) public onlyOwner {
+    function set(uint256 _pid, uint256 _allocPoint, IRewarder _rewarder, bool overwrite) internal {
         totalAllocPoint = totalAllocPoint.sub(poolInfo[_pid].allocPoint).add(_allocPoint);
         poolInfo[_pid].allocPoint = _allocPoint.to64();
         if (overwrite) { rewarder[_pid] = _rewarder; }
         emit LogSetPool(_pid, _allocPoint, overwrite ? _rewarder : rewarder[_pid], overwrite);
     }
 
-    /// @notice Sets the sushi per second to be distributed. Can only be called by the owner.
-    /// @param _sushiPerSecond The amount of Sushi to be distributed per second.
-    function setSushiPerSecond(uint256 _sushiPerSecond) public onlyOwner {
-        sushiPerSecond = _sushiPerSecond;
-        emit LogSushiPerSecond(_sushiPerSecond);
-    }
-
     /// @notice Set the `migrator` contract. Can only be called by the owner.
     /// @param _migrator The contract address to set.
     function setMigrator(IMigratorChef _migrator) public onlyOwner {
+        require(!migrationDisabled, "MiniChefV2: migration has been disabled");
         migrator = _migrator;
+        emit LogMigratorSet(address(_migrator));
+    }
+
+    /// @notice Permanently disable the `migrator` functionality.
+    /// This can only effectively be called once.
+    function disableMigrator() public onlyOwner {
+        migrationDisabled = true;
+        emit LogMigratorDisabled();
     }
 
     /// @notice Migrate LP token to another LP contract through the `migrator` contract.
     /// @param _pid The index of the pool. See `poolInfo`.
     function migrate(uint256 _pid) public {
-        require(address(migrator) != address(0), "MasterChefV2: no migrator set");
+        require(!migrationDisabled, "MiniChefV2: migration has been disabled");
+        require(address(migrator) != address(0), "MiniChefV2: no migrator set");
         IERC20 _lpToken = lpToken[_pid];
         uint256 bal = _lpToken.balanceOf(address(this));
         _lpToken.approve(address(migrator), bal);
         IERC20 newLpToken = migrator.migrate(_lpToken);
-        require(bal == newLpToken.balanceOf(address(this)), "MasterChefV2: migrated balance must match");
+        require(bal == newLpToken.balanceOf(address(this)), "MiniChefV2: migrated balance must match");
         lpToken[_pid] = newLpToken;
+        emit LogMigrate(_pid);
     }
 
     /// @notice View function to see pending SUSHI on frontend.
@@ -154,7 +222,9 @@ contract MiniChefV2 is BoringOwnable, BoringBatchable {
         uint256 accSushiPerShare = pool.accSushiPerShare;
         uint256 lpSupply = lpToken[_pid].balanceOf(address(this));
         if (block.timestamp > pool.lastRewardTime && lpSupply != 0) {
-            uint256 time = block.timestamp.sub(pool.lastRewardTime);
+            uint256 time = block.timestamp <= rewardsExpiration
+                ? block.timestamp.sub(pool.lastRewardTime)
+                : rewardsExpiration.sub(pool.lastRewardTime);
             uint256 sushiReward = time.mul(sushiPerSecond).mul(pool.allocPoint) / totalAllocPoint;
             accSushiPerShare = accSushiPerShare.add(sushiReward.mul(ACC_SUSHI_PRECISION) / lpSupply);
         }
@@ -170,6 +240,14 @@ contract MiniChefV2 is BoringOwnable, BoringBatchable {
         }
     }
 
+    /// @notice Update reward variables for all pools. Be careful of gas spending!
+    function massUpdateAllPools() public {
+        uint256 len = poolInfo.length;
+        for (uint256 pid = 0; pid < len; ++pid) {
+            updatePool(pid);
+        }
+    }
+
     /// @notice Update reward variables of the given pool.
     /// @param pid The index of the pool. See `poolInfo`.
     /// @return pool Returns the pool that was updated.
@@ -178,7 +256,9 @@ contract MiniChefV2 is BoringOwnable, BoringBatchable {
         if (block.timestamp > pool.lastRewardTime) {
             uint256 lpSupply = lpToken[pid].balanceOf(address(this));
             if (lpSupply > 0) {
-                uint256 time = block.timestamp.sub(pool.lastRewardTime);
+                uint256 time = block.timestamp <= rewardsExpiration
+                    ? block.timestamp.sub(pool.lastRewardTime)
+                    : rewardsExpiration.sub(pool.lastRewardTime);
                 uint256 sushiReward = time.mul(sushiPerSecond).mul(pool.allocPoint) / totalAllocPoint;
                 pool.accSushiPerShare = pool.accSushiPerShare.add((sushiReward.mul(ACC_SUSHI_PRECISION) / lpSupply).to128());
             }
@@ -296,13 +376,65 @@ contract MiniChefV2 is BoringOwnable, BoringBatchable {
         user.amount = 0;
         user.rewardDebt = 0;
 
-        IRewarder _rewarder = rewarder[pid];
-        if (address(_rewarder) != address(0)) {
-            _rewarder.onSushiReward(pid, msg.sender, to, 0, 0);
-        }
-
         // Note: transfer can fail or succeed if `amount` is zero.
         lpToken[pid].safeTransfer(to, amount);
         emit EmergencyWithdraw(msg.sender, pid, amount, to);
+    }
+
+    /// @notice Give permission for an address to change the rewards duration
+    /// @param _funder The address to be added
+    function addFunder(address _funder) external onlyOwner {
+        funder[_funder] = true;
+        emit LogFunderAdded(_funder);
+    }
+
+    /// @notice Remove permission for an address to change the rewards duration
+    /// @param _funder The address to be removed
+    function removeFunder(address _funder) external onlyOwner {
+        funder[_funder] = false;
+        emit LogFunderRemoved(_funder);
+    }
+
+    function fund(uint256 newFunding, uint256 duration) external {
+        require(newFunding > 0);
+        require(msg.sender == owner() || funder[msg.sender] == true || duration == 0, "MiniChefV2: only funders can change reward duration");
+
+        SUSHI.safeTransfer(address(this), newFunding);
+
+        if (block.timestamp >= rewardsExpiration) {
+            require(duration > 0, "MiniChefV2: reward duration cannot be zero");
+            massUpdateAllPools();
+            rewardsExpiration = block.timestamp.add(duration);
+            sushiPerSecond = newFunding / duration;
+        } else {
+            uint256 remainingTime = rewardsExpiration.sub(block.timestamp);
+            uint256 remainingRewards = remainingTime.mul(sushiPerSecond);
+            uint256 newRewardsExpiration = rewardsExpiration.add(duration);
+            uint256 newSushiPerSecond = remainingRewards.add(newFunding) / (newRewardsExpiration.sub(block.timestamp));
+            if (newSushiPerSecond != sushiPerSecond) {
+                massUpdateAllPools();
+            }
+            rewardsExpiration = newRewardsExpiration;
+            sushiPerSecond = newSushiPerSecond;
+        }
+
+        emit LogSushiPerSecond(sushiPerSecond);
+        emit LogRewardsExpiration(rewardsExpiration);
+    }
+
+    function forceRewardDuration(uint256 duration) external onlyOwner {
+        require(block.timestamp < rewardsExpiration, "MiniChefV2: cannot change duration now");
+        require(duration > 0, "MiniChefV2: reward duration cannot be zero");
+
+        massUpdateAllPools();
+
+        uint256 remainingTime = rewardsExpiration.sub(block.timestamp);
+        uint256 remainingRewards = remainingTime.mul(sushiPerSecond);
+        rewardsExpiration = block.timestamp.add(duration);
+        sushiPerSecond = remainingRewards / (rewardsExpiration.sub(block.timestamp));
+
+        // TODO: Emit event for this action?
+        emit LogSushiPerSecond(sushiPerSecond);
+        emit LogRewardsExpiration(rewardsExpiration);
     }
 }

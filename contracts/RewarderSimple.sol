@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
 
 pragma solidity 0.6.12;
-import "../interfaces/IRewarder.sol";
+
 import "@boringcrypto/boring-solidity/contracts/libraries/BoringERC20.sol";
 import "@boringcrypto/boring-solidity/contracts/libraries/BoringMath.sol";
 
+import "./interfaces/IRewarder.sol";
 
 contract RewarderSimple is IRewarder {
     using BoringMath for uint256;
