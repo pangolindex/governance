@@ -401,23 +401,23 @@ contract MiniChefV2 is Ownable {
     }
 
     /// @notice Add funding and potentially extend duration of the rolling reward period
-    /// @param newFunding Amount of reward token to add
+    /// @param funding Amount of reward token to add
     /// @param duration Total time (seconds) during which the additional funds are distributed
-    function fundRewards(uint256 newFunding, uint256 duration) external onlyFunder {
-        require(newFunding > 0, "MiniChefV2: funding cannot be zero");
+    function fundRewards(uint256 funding, uint256 duration) external onlyFunder {
+        require(funding > 0, "MiniChefV2: funding cannot be zero");
 
-        SUSHI.safeTransfer(address(this), newFunding);
+        SUSHI.safeTransfer(address(this), funding);
 
         if (block.timestamp >= rewardsExpiration) {
             require(duration > 0, "MiniChefV2: reward duration cannot be zero");
             massUpdateAllPools();
             rewardsExpiration = block.timestamp.add(duration);
-            sushiPerSecond = newFunding / duration;
+            sushiPerSecond = funding / duration;
         } else {
             uint256 remainingTime = rewardsExpiration.sub(block.timestamp);
             uint256 remainingRewards = remainingTime.mul(sushiPerSecond);
             uint256 newRewardsExpiration = rewardsExpiration.add(duration);
-            uint256 newSushiPerSecond = remainingRewards.add(newFunding) / (newRewardsExpiration.sub(block.timestamp));
+            uint256 newSushiPerSecond = remainingRewards.add(funding) / (newRewardsExpiration.sub(block.timestamp));
             if (newSushiPerSecond != sushiPerSecond) {
                 massUpdateAllPools();
             }
@@ -429,10 +429,9 @@ contract MiniChefV2 is Ownable {
         emit LogRewardsExpiration(rewardsExpiration);
     }
 
-    /// @notice Allocate the existing rewards during a newly defined duration
-    /// @param duration Time (seconds) to fully emit the currently present rewards
+    /// @notice Allocate the existing rewards during a newly defined period starting now
+    /// @param duration Time (seconds) to fully distribute the currently present rewards
     function resetRewardsDuration(uint256 duration) external onlyOwner {
-        require(block.timestamp < rewardsExpiration, "MiniChefV2: cannot reset duration now");
         require(duration > 0, "MiniChefV2: reward duration cannot be zero");
 
         massUpdateAllPools();
@@ -447,15 +446,33 @@ contract MiniChefV2 is Ownable {
     }
 
     /// @notice Extends the rolling reward period by adding funds without changing the reward rate
-    /// @param newFunding Amount of the reward token to add
-    function extendRewardsDuration(uint256 newFunding) external {
-        require(block.timestamp < rewardsExpiration, "MiniChefV2: cannot extend duration now");
-        require(newFunding > 0, "MiniChefV2: funding cannot be zero");
+    /// @param funding Amount of reward token to add
+    /// @notice minExtension Minimum time (seconds) that the reward duration must be increased
+    function extendRewardsViaFunding(uint256 funding, uint256 minExtension) external {
+        require(funding > 0, "MiniChefV2: funding amount cannot be zero");
 
-        SUSHI.safeTransfer(address(this), newFunding);
+        uint256 extensionDuration = funding / sushiPerSecond;
+        require(extensionDuration >= minExtension, "MiniChefV2: insufficient extension limit");
 
-        uint256 extensionDuration = newFunding / sushiPerSecond;
         rewardsExpiration = rewardsExpiration.add(extensionDuration);
+
+        SUSHI.safeTransfer(address(this), funding);
+
+        emit LogRewardsExpiration(rewardsExpiration);
+    }
+
+    /// @notice Extends the rolling reward period by adding funds without changing the reward rate
+    /// @param extension Time (seconds) to increase the rewards duration
+    /// @param maxFunding Maximum amount of the reward token that can be used
+    function extendRewardsViaDuration(uint256 extension, uint256 maxFunding) external {
+        require(extension > 0, "MiniChefV2: extension duration cannot be zero");
+
+        uint256 fundingRequired = sushiPerSecond.mul(extension);
+        require(fundingRequired <= maxFunding, "MiniChefV2: insufficient funding limit");
+
+        rewardsExpiration = rewardsExpiration.add(extension);
+
+        SUSHI.safeTransfer(address(this), fundingRequired);
 
         emit LogRewardsExpiration(rewardsExpiration);
     }
