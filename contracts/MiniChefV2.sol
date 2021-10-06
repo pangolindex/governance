@@ -78,16 +78,16 @@ contract MiniChefV2 is Ownable {
     event Withdraw(address indexed user, uint256 indexed pid, uint256 amount, address indexed to);
     event EmergencyWithdraw(address indexed user, uint256 indexed pid, uint256 amount, address indexed to);
     event Harvest(address indexed user, uint256 indexed pid, uint256 amount);
-    event LogPoolAddition(uint256 indexed pid, uint256 allocPoint, IERC20 indexed lpToken, IRewarder indexed rewarder);
-    event LogSetPool(uint256 indexed pid, uint256 allocPoint, IRewarder indexed rewarder, bool overwrite);
-    event LogUpdatePool(uint256 indexed pid, uint64 lastRewardTime, uint256 lpSupply, uint256 accSushiPerShare);
-    event LogMigratorSet(address migrator);
-    event LogMigratorDisabled();
-    event LogMigrate(uint256 pid);
+    event PoolAdded(uint256 indexed pid, uint256 allocPoint, IERC20 indexed lpToken, IRewarder indexed rewarder);
+    event PoolSet(uint256 indexed pid, uint256 allocPoint, IRewarder indexed rewarder, bool overwrite);
+    event PoolUpdate(uint256 indexed pid, uint64 lastRewardTime, uint256 lpSupply, uint256 accSushiPerShare);
+    event MigratorSet(address migrator);
+    event MigratorDisabled();
+    event Migrate(uint256 pid);
+    event FunderAdded(address funder);
+    event FunderRemoved(address funder);
     event LogSushiPerSecond(uint256 sushiPerSecond);
     event LogRewardsExpiration(uint256 rewardsExpiration);
-    event LogFunderAdded(address funder);
-    event LogFunderRemoved(address funder);
 
     /// @param _sushi The SUSHI token contract address.
     constructor(IERC20 _sushi, address _firstOwner) public {
@@ -145,7 +145,7 @@ contract MiniChefV2 is Ownable {
             accSushiPerShare: 0
         }));
         addedTokens[address(_lpToken)] = true;
-        emit LogPoolAddition(lpToken.length.sub(1), allocPoint, _lpToken, _rewarder);
+        emit PoolAdded(lpToken.length.sub(1), allocPoint, _lpToken, _rewarder);
     }
 
     /// @notice Change information for one pool after appropriately updating all pools
@@ -180,7 +180,7 @@ contract MiniChefV2 is Ownable {
         totalAllocPoint = totalAllocPoint.sub(poolInfo[_pid].allocPoint).add(_allocPoint);
         poolInfo[_pid].allocPoint = _allocPoint.to64();
         if (overwrite) { rewarder[_pid] = _rewarder; }
-        emit LogSetPool(_pid, _allocPoint, overwrite ? _rewarder : rewarder[_pid], overwrite);
+        emit PoolSet(_pid, _allocPoint, overwrite ? _rewarder : rewarder[_pid], overwrite);
     }
 
     /// @notice Set the `migrator` contract. Can only be called by the owner.
@@ -188,14 +188,14 @@ contract MiniChefV2 is Ownable {
     function setMigrator(IMigratorChef _migrator) public onlyOwner {
         require(!migrationDisabled, "MiniChefV2: migration has been disabled");
         migrator = _migrator;
-        emit LogMigratorSet(address(_migrator));
+        emit MigratorSet(address(_migrator));
     }
 
     /// @notice Permanently disable the `migrator` functionality.
     /// This can only effectively be called once.
     function disableMigrator() public onlyOwner {
         migrationDisabled = true;
-        emit LogMigratorDisabled();
+        emit MigratorDisabled();
     }
 
     /// @notice Migrate LP token to another LP contract through the `migrator` contract.
@@ -209,7 +209,7 @@ contract MiniChefV2 is Ownable {
         IERC20 newLpToken = migrator.migrate(_lpToken);
         require(bal == newLpToken.balanceOf(address(this)), "MiniChefV2: migrated balance must match");
         lpToken[_pid] = newLpToken;
-        emit LogMigrate(_pid);
+        emit Migrate(_pid);
     }
 
     /// @notice View function to see pending SUSHI on frontend.
@@ -264,7 +264,7 @@ contract MiniChefV2 is Ownable {
             }
             pool.lastRewardTime = block.timestamp.to64();
             poolInfo[pid] = pool;
-            emit LogUpdatePool(pid, pool.lastRewardTime, lpSupply, pool.accSushiPerShare);
+            emit PoolUpdate(pid, pool.lastRewardTime, lpSupply, pool.accSushiPerShare);
         }
     }
 
@@ -385,19 +385,26 @@ contract MiniChefV2 is Ownable {
     /// @param _funder The address to be added
     function addFunder(address _funder) external onlyOwner {
         funder[_funder] = true;
-        emit LogFunderAdded(_funder);
+        emit FunderAdded(_funder);
     }
 
     /// @notice Remove permission for an address to change the rewards duration
     /// @param _funder The address to be removed
     function removeFunder(address _funder) external onlyOwner {
         funder[_funder] = false;
-        emit LogFunderRemoved(_funder);
+        emit FunderRemoved(_funder);
     }
 
-    function fund(uint256 newFunding, uint256 duration) external {
-        require(newFunding > 0);
-        require(msg.sender == owner() || funder[msg.sender] == true || duration == 0, "MiniChefV2: only funders can change reward duration");
+    modifier onlyFunder() {
+        require(msg.sender == owner() || funder[msg.sender] == true, "MiniChefV2: caller is not a funder");
+        _;
+    }
+
+    /// @notice Add funding and potentially extend duration of the rolling reward period
+    /// @param newFunding Amount of reward token to add
+    /// @param duration Total time (seconds) during which the additional funds are distributed
+    function fundRewards(uint256 newFunding, uint256 duration) external onlyFunder {
+        require(newFunding > 0, "MiniChefV2: funding cannot be zero");
 
         SUSHI.safeTransfer(address(this), newFunding);
 
@@ -422,8 +429,10 @@ contract MiniChefV2 is Ownable {
         emit LogRewardsExpiration(rewardsExpiration);
     }
 
-    function forceRewardDuration(uint256 duration) external onlyOwner {
-        require(block.timestamp < rewardsExpiration, "MiniChefV2: cannot change duration now");
+    /// @notice Allocate the existing rewards during a newly defined duration
+    /// @param duration Time (seconds) to fully emit the currently present rewards
+    function resetRewardsDuration(uint256 duration) external onlyOwner {
+        require(block.timestamp < rewardsExpiration, "MiniChefV2: cannot reset duration now");
         require(duration > 0, "MiniChefV2: reward duration cannot be zero");
 
         massUpdateAllPools();
@@ -433,8 +442,21 @@ contract MiniChefV2 is Ownable {
         rewardsExpiration = block.timestamp.add(duration);
         sushiPerSecond = remainingRewards / (rewardsExpiration.sub(block.timestamp));
 
-        // TODO: Emit event for this action?
         emit LogSushiPerSecond(sushiPerSecond);
+        emit LogRewardsExpiration(rewardsExpiration);
+    }
+
+    /// @notice Extends the rolling reward period by adding funds without changing the reward rate
+    /// @param newFunding Amount of the reward token to add
+    function extendRewardsDuration(uint256 newFunding) external {
+        require(block.timestamp < rewardsExpiration, "MiniChefV2: cannot extend duration now");
+        require(newFunding > 0, "MiniChefV2: funding cannot be zero");
+
+        SUSHI.safeTransfer(address(this), newFunding);
+
+        uint256 extensionDuration = newFunding / sushiPerSecond;
+        rewardsExpiration = rewardsExpiration.add(extensionDuration);
+
         emit LogRewardsExpiration(rewardsExpiration);
     }
 }

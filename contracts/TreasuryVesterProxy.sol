@@ -11,7 +11,7 @@ interface ITreasuryVester {
 }
 
 interface MiniChefV2 {
-    function fund(uint256 newFunding, uint256 duration) external;
+    function fundRewards(uint256 newFunding, uint256 duration) external;
 }
 
 // SPDX-License-Identifier: MIT
@@ -26,6 +26,7 @@ contract TreasuryVesterProxy is Ownable, ReentrancyGuard {
 
     uint constant PNG_MAX_SUPPLY = 512_000_000e18;
     uint constant PNG_MAX_VESTED = 230_000_000e18;
+    uint constant PNG_VESTING_CLIFF = 86_400;
     uint constant TREASURY_TARGET_BALANCE = 30_000_000e18;
 
     uint pngVested;
@@ -95,7 +96,7 @@ contract TreasuryVesterProxy is Ownable, ReentrancyGuard {
 
             pngVested += chefAmount;
             vestedAmountRemaining -= chefAmount;
-            chef.fund(chefAmount, 1 days);
+            chef.fundRewards(chefAmount, PNG_VESTING_CLIFF);
         }
 
         if (vestedAmountRemaining > 0) {
