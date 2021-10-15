@@ -410,7 +410,7 @@ contract MiniChefV2 is Ownable {
     function fundRewards(uint256 funding, uint256 duration) external onlyFunder {
         require(funding > 0, "MiniChefV2: funding cannot be zero");
 
-        SUSHI.safeTransfer(address(this), funding);
+        SUSHI.safeTransferFrom(msg.sender, address(this), funding);
 
         if (block.timestamp >= rewardsExpiration) {
             require(duration > 0, "MiniChefV2: reward duration cannot be zero");
@@ -460,7 +460,7 @@ contract MiniChefV2 is Ownable {
 
         rewardsExpiration = rewardsExpiration.add(extensionDuration);
 
-        SUSHI.safeTransfer(address(this), funding);
+        SUSHI.safeTransferFrom(msg.sender, address(this), funding);
 
         emit LogRewardsExpiration(rewardsExpiration);
     }
@@ -476,7 +476,7 @@ contract MiniChefV2 is Ownable {
 
         rewardsExpiration = rewardsExpiration.add(extension);
 
-        SUSHI.safeTransfer(address(this), fundingRequired);
+        SUSHI.safeTransferFrom(msg.sender, address(this), fundingRequired);
 
         emit LogRewardsExpiration(rewardsExpiration);
     }
