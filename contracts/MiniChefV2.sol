@@ -223,8 +223,10 @@ contract MiniChefV2 is Ownable {
         uint256 lpSupply = lpToken[_pid].balanceOf(address(this));
         if (block.timestamp > pool.lastRewardTime && lpSupply != 0) {
             uint256 time = block.timestamp <= rewardsExpiration
-                ? block.timestamp.sub(pool.lastRewardTime)
-                : rewardsExpiration.sub(pool.lastRewardTime);
+                ? block.timestamp.sub(pool.lastRewardTime) // Accrue rewards until now
+                : rewardsExpiration > pool.lastRewardTime
+                    ? rewardsExpiration.sub(pool.lastRewardTime) // Accrue rewards until expiration
+                    : 0; // No rewards to accrue
             uint256 sushiReward = time.mul(sushiPerSecond).mul(pool.allocPoint) / totalAllocPoint;
             accSushiPerShare = accSushiPerShare.add(sushiReward.mul(ACC_SUSHI_PRECISION) / lpSupply);
         }
@@ -257,8 +259,10 @@ contract MiniChefV2 is Ownable {
             uint256 lpSupply = lpToken[pid].balanceOf(address(this));
             if (lpSupply > 0) {
                 uint256 time = block.timestamp <= rewardsExpiration
-                    ? block.timestamp.sub(pool.lastRewardTime)
-                    : rewardsExpiration.sub(pool.lastRewardTime);
+                    ? block.timestamp.sub(pool.lastRewardTime) // Accrue rewards until now
+                    : rewardsExpiration > pool.lastRewardTime
+                        ? rewardsExpiration.sub(pool.lastRewardTime) // Accrue rewards until expiration
+                        : 0; // No rewards to accrue
                 uint256 sushiReward = time.mul(sushiPerSecond).mul(pool.allocPoint) / totalAllocPoint;
                 pool.accSushiPerShare = pool.accSushiPerShare.add((sushiReward.mul(ACC_SUSHI_PRECISION) / lpSupply).to128());
             }
