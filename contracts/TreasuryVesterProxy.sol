@@ -33,7 +33,7 @@ contract TreasuryVesterProxy is Ownable, ReentrancyGuard {
     uint pngVestingTreasuryCutoff;
     uint distributionCount;
 
-    uint diversionAmount = 1_000e18;
+    uint diversionAmount;
     uint diversionGain;
 
     bool initialized;
@@ -44,7 +44,7 @@ contract TreasuryVesterProxy is Ownable, ReentrancyGuard {
         treasury = _treasury;
         chef = MiniChefV2(_chef);
 
-        // Required for chef.fund()
+        // Required for chef.fundRewards()
         png.approve(_chef, type(uint256).max);
     }
 
