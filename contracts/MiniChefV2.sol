@@ -200,7 +200,7 @@ contract MiniChefV2 is Ownable {
 
     /// @notice Migrate LP token to another LP contract through the `migrator` contract.
     /// @param _pid The index of the pool. See `poolInfo`.
-    function migrate(uint256 _pid) public {
+    function migrate(uint256 _pid) public onlyOwner {
         require(!migrationDisabled, "MiniChefV2: migration has been disabled");
         require(address(migrator) != address(0), "MiniChefV2: no migrator set");
         IERC20 _lpToken = lpToken[_pid];
