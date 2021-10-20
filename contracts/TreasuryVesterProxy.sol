@@ -85,9 +85,13 @@ contract TreasuryVesterProxy is Ownable, ReentrancyGuard {
             diversionAmount += diversionGain;
         }
 
-        uint chefMaxAmount = vestedAmountRemaining - diversionAmount;
+        // Clamps diversionAmount to [0, vestedAmountRemaining]
+        if (diversionAmount > vestedAmountRemaining) {
+            diversionAmount = vestedAmountRemaining;
+        }
 
         if (pngVested < pngVestingTreasuryCutoff) {
+            // Clamps treasuryAmount to [1, diversionAmount]
             uint treasuryAmount = (pngVested + diversionAmount > pngVestingTreasuryCutoff)
                 ? pngVestingTreasuryCutoff - pngVested // Avoid overfunding in the last diversion
                 : diversionAmount;
@@ -98,9 +102,10 @@ contract TreasuryVesterProxy is Ownable, ReentrancyGuard {
         }
 
         if (pngVested < PNG_MAX_VESTED) {
-            uint chefAmount = (pngVested + chefMaxAmount > PNG_MAX_VESTED)
-                ? PNG_MAX_VESTED - chefMaxAmount // Avoid overvesting in the last diversion
-                : chefMaxAmount;
+            // Clamps chefAmount to [1, vestedAmountRemaining]
+            uint chefAmount = (pngVested + vestedAmountRemaining > PNG_MAX_VESTED)
+                ? PNG_MAX_VESTED - vestedAmountRemaining // Avoid overvesting in the last diversion
+                : vestedAmountRemaining;
 
             pngVested += chefAmount;
             vestedAmountRemaining -= chefAmount;
