@@ -28,6 +28,7 @@ contract TreasuryVesterProxy is Ownable, ReentrancyGuard {
     uint constant PNG_MAX_VESTED = 230_000_000e18;
     uint constant PNG_VESTING_CLIFF = 86_400;
     uint constant TREASURY_TARGET_BALANCE = 30_000_000e18;
+    address constant BURN_ADDRESS = address(0);
 
     uint pngVested;
     uint pngVestingTreasuryCutoff;
@@ -113,7 +114,8 @@ contract TreasuryVesterProxy is Ownable, ReentrancyGuard {
         }
 
         if (vestedAmountRemaining > 0) {
-            png.safeTransfer(address(1), vestedAmountRemaining);
+            // Logical burn since PNG cannot be sent to the 0 address
+            png.safeTransfer(BURN_ADDRESS, vestedAmountRemaining);
         }
 
         distributionCount++;
