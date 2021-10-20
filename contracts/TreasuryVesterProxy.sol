@@ -28,7 +28,7 @@ contract TreasuryVesterProxy is Ownable, ReentrancyGuard {
     uint constant PNG_MAX_VESTED = 230_000_000e18;
     uint constant PNG_VESTING_CLIFF = 86_400;
     uint constant TREASURY_TARGET_BALANCE = 30_000_000e18;
-    address constant BURN_ADDRESS = address(0);
+    address constant BURN_ADDRESS = address(0x000000000000000000000000000000000000dEaD);
 
     uint pngVested;
     uint pngVestingTreasuryCutoff;
