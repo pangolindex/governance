@@ -90,8 +90,14 @@ contract MiniChefV2 is Ownable {
     event LogRewardsExpiration(uint256 rewardsExpiration);
 
     /// @param _sushi The SUSHI token contract address.
-    constructor(IERC20 _sushi, address _firstOwner) public {
-        SUSHI = _sushi;
+    constructor(address _sushi, address _firstOwner) public {
+        require(
+            _sushi != address(0)
+            && _firstOwner != address(0),
+            "MiniChefV2::Cannot construct with zero address"
+        );
+
+        SUSHI = IERC20(_sushi);
         transferOwnership(_firstOwner);
     }
 

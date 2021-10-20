@@ -39,6 +39,14 @@ contract TreasuryVesterProxy is Ownable, ReentrancyGuard {
     bool initialized;
 
     constructor(address _png, address _treasuryVester, address _treasury, address _chef) {
+        require(
+            _png != address(0)
+            && _treasuryVester != address(0)
+            && _treasury != address(0)
+            && _chef != address(0),
+            "TreasuryVesterProxy::Cannot construct with zero address"
+        );
+
         png = IERC20(_png);
         treasuryVester = ITreasuryVester(_treasuryVester);
         treasury = _treasury;

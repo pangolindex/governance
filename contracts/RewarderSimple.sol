@@ -12,16 +12,24 @@ contract RewarderSimple is IRewarder {
     using BoringERC20 for IERC20;
     uint256 private immutable rewardMultiplier;
     IERC20 private immutable rewardToken;
-    uint256 private constant REWARD_TOKEN_DIVISOR = 1e18;
+    uint256 private immutable REWARD_TOKEN_DIVISOR;
     address private immutable MASTERCHEF_V2;
 
-    constructor (uint256 _rewardMultiplier, IERC20 _rewardToken, address _MASTERCHEF_V2) public {
+    constructor (uint256 _rewardMultiplier, address _rewardToken, uint256 _rewardDecimals, address _MASTERCHEF_V2) public {
+        require(_rewardMultiplier > 0, "RewarderSimple::Invalid multiplier");
+        require(
+            _rewardToken != address(0)
+            && _MASTERCHEF_V2 != address(0),
+            "RewarderSimple::Cannot construct with zero address"
+        );
+
         rewardMultiplier = _rewardMultiplier;
-        rewardToken = _rewardToken;
+        rewardToken = IERC20(_rewardToken);
+        REWARD_TOKEN_DIVISOR = 10 ** _rewardDecimals;
         MASTERCHEF_V2 = _MASTERCHEF_V2;
     }
 
-    function onSushiReward (uint256, address user, address to, uint256 sushiAmount, uint256) onlyMCV2 override external {
+    function onSushiReward (uint256, address, address to, uint256 sushiAmount, uint256) onlyMCV2 override external {
         uint256 pendingReward = sushiAmount.mul(rewardMultiplier) / REWARD_TOKEN_DIVISOR;
         uint256 rewardBal = rewardToken.balanceOf(address(this));
         if (pendingReward > rewardBal) {
@@ -31,7 +39,7 @@ contract RewarderSimple is IRewarder {
         }
     }
 
-    function pendingTokens(uint256 pid, address user, uint256 sushiAmount) override external view returns (IERC20[] memory rewardTokens, uint256[] memory rewardAmounts) {
+    function pendingTokens(uint256, address, uint256 sushiAmount) override external view returns (IERC20[] memory rewardTokens, uint256[] memory rewardAmounts) {
         IERC20[] memory _rewardTokens = new IERC20[](1);
         _rewardTokens[0] = (rewardToken);
         uint256[] memory _rewardAmounts = new uint256[](1);
