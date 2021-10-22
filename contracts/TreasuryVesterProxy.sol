@@ -24,20 +24,22 @@ contract TreasuryVesterProxy is Ownable, ReentrancyGuard {
     MiniChefV2 chef;
     address treasury;
 
-    uint constant PNG_MAX_SUPPLY = 512_000_000e18;
-    uint constant PNG_MAX_VESTED = 230_000_000e18;
-    uint constant PNG_VESTING_CLIFF = 86_400;
+    uint constant PNG_INITIAL_MAX_SUPPLY = 538_000_000e18;
+    uint constant PNG_NEW_MAX_SUPPLY = 230_000_000e18;
     uint constant TREASURY_TARGET_BALANCE = 30_000_000e18;
+    uint constant PNG_VESTING_CLIFF = 86_400;
+    uint constant DIVERSION_STEP = 1_000e18;
     address constant BURN_ADDRESS = address(0x000000000000000000000000000000000000dEaD);
 
-    uint pngVested;
-    uint pngVestingTreasuryCutoff;
-    uint distributionCount;
-
-    uint diversionAmount;
-    uint diversionGain;
-
     bool initialized;
+    uint pngVested;
+
+    uint public distributionCount;
+
+    uint public treasuryDiversionRemaining;
+
+    uint public diversionAmount;
+    uint public diversionGain;
 
     constructor(address _png, address _treasuryVester, address _treasury, address _chef) {
         require(
@@ -52,9 +54,6 @@ contract TreasuryVesterProxy is Ownable, ReentrancyGuard {
         treasuryVester = ITreasuryVester(_treasuryVester);
         treasury = _treasury;
         chef = MiniChefV2(_chef);
-
-        // Required for chef.fundRewards()
-        png.approve(_chef, type(uint256).max);
     }
 
     function init() external onlyOwner {
@@ -64,10 +63,13 @@ contract TreasuryVesterProxy is Ownable, ReentrancyGuard {
         uint treasuryBalance = png.balanceOf(treasury);
 
         // PNG that has already been vested
-        pngVested = PNG_MAX_SUPPLY - unvestedPng;
+        pngVested = PNG_INITIAL_MAX_SUPPLY - unvestedPng;
 
-        // PNG should be diverted to the treasury until this point to reach the target balance
-        pngVestingTreasuryCutoff = pngVested + TREASURY_TARGET_BALANCE - treasuryBalance;
+        // PNG that should be diverted to the treasury to reach the target balance
+        treasuryDiversionRemaining = TREASURY_TARGET_BALANCE - treasuryBalance;
+
+        // Required for chef.fundRewards()
+        png.approve(address(chef), type(uint256).max);
 
         initialized = true;
     }
@@ -75,42 +77,49 @@ contract TreasuryVesterProxy is Ownable, ReentrancyGuard {
     function claimAndDistribute() external {
         require(initialized == true, "TreasuryVesterProxy::Not initialized");
         uint vestedAmountRemaining = treasuryVester.claim();
+        require(vestedAmountRemaining > 0, "TreasuryVesterProxy::Nothing vested");
 
         // Increase rate of diversion gain once every 300 days
-        if (distributionCount % uint(300) == uint(0)) {
-            diversionGain += 1_000e18;
+        if (distributionCount % 300 == 0) {
+            diversionGain += DIVERSION_STEP;
         }
 
         // Increase diversion every 30 days
-        if (distributionCount % uint(30) == uint(0)) {
+        if (distributionCount % 30 == 0) {
             diversionAmount += diversionGain;
         }
 
-        // Clamps diversionAmount to [0, vestedAmountRemaining]
+        // Clamps diversionAmount to [1, vestedAmountRemaining]
         if (diversionAmount > vestedAmountRemaining) {
             diversionAmount = vestedAmountRemaining;
         }
 
-        if (pngVested < pngVestingTreasuryCutoff) {
-            // Clamps treasuryAmount to [1, diversionAmount]
-            uint treasuryAmount = (pngVested + diversionAmount > pngVestingTreasuryCutoff)
-                ? pngVestingTreasuryCutoff - pngVested // Avoid overfunding in the last diversion
-                : diversionAmount;
+        uint treasuryAmountMax = (diversionAmount > treasuryDiversionRemaining)
+            ? treasuryDiversionRemaining // Avoid overfunding Treasury
+            : diversionAmount;
+        uint chefAmountMax = vestedAmountRemaining - diversionAmount;
+
+        if (treasuryDiversionRemaining > 0) {
+            uint treasuryAmount = pngVested + treasuryAmountMax > PNG_NEW_MAX_SUPPLY
+                ? PNG_NEW_MAX_SUPPLY - pngVested // Avoid overvesting PNG
+                : treasuryAmountMax;
 
             pngVested += treasuryAmount;
             vestedAmountRemaining -= treasuryAmount;
+            treasuryDiversionRemaining -= treasuryAmount;
             png.safeTransfer(treasury, treasuryAmount);
         }
 
-        if (pngVested < PNG_MAX_VESTED) {
-            // Clamps chefAmount to [1, vestedAmountRemaining]
-            uint chefAmount = (pngVested + vestedAmountRemaining > PNG_MAX_VESTED)
-                ? PNG_MAX_VESTED - vestedAmountRemaining // Avoid overvesting in the last diversion
-                : vestedAmountRemaining;
+        if (pngVested < PNG_NEW_MAX_SUPPLY) {
+            uint chefAmount = (pngVested + chefAmountMax > PNG_NEW_MAX_SUPPLY)
+                ? PNG_NEW_MAX_SUPPLY - pngVested // Avoid overvesting PNG
+                : chefAmountMax;
 
-            pngVested += chefAmount;
-            vestedAmountRemaining -= chefAmount;
-            chef.fundRewards(chefAmount, PNG_VESTING_CLIFF);
+            if (chefAmount > 0) {
+                pngVested += chefAmount;
+                vestedAmountRemaining -= chefAmount;
+                chef.fundRewards(chefAmount, PNG_VESTING_CLIFF);
+            }
         }
 
         if (vestedAmountRemaining > 0) {
