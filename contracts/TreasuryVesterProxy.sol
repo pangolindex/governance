@@ -19,10 +19,10 @@ interface MiniChefV2 {
 contract TreasuryVesterProxy is Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
-    IERC20 png;
-    ITreasuryVester treasuryVester;
-    MiniChefV2 chef;
-    address treasury;
+    IERC20 public png;
+    ITreasuryVester public treasuryVester;
+    MiniChefV2 public chef;
+    address public treasury;
 
     uint constant PNG_INITIAL_MAX_SUPPLY = 538_000_000e18;
     uint constant PNG_NEW_MAX_SUPPLY = 230_000_000e18;
@@ -32,7 +32,7 @@ contract TreasuryVesterProxy is Ownable, ReentrancyGuard {
     address constant BURN_ADDRESS = address(0x000000000000000000000000000000000000dEaD);
 
     bool initialized;
-    uint pngVested;
+    uint public pngVested;
 
     uint public distributionCount;
 
