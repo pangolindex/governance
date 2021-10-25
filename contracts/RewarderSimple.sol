@@ -17,6 +17,7 @@ contract RewarderSimple is IRewarder {
 
     constructor (uint256 _rewardMultiplier, address _rewardToken, uint256 _rewardDecimals, address _MASTERCHEF_V2) public {
         require(_rewardMultiplier > 0, "RewarderSimple::Invalid multiplier");
+        require(_rewardDecimals <= 77, "RewarderSimple::Invalid decimals");
         require(
             _rewardToken != address(0)
             && _MASTERCHEF_V2 != address(0),
