@@ -10,7 +10,7 @@ interface ITreasuryVester {
     function recipient() external returns (address);
 }
 
-interface MiniChefV2 {
+interface IMiniChefV2 {
     function fundRewards(uint256 newFunding, uint256 duration) external;
 }
 
@@ -21,7 +21,7 @@ contract TreasuryVesterProxy is Ownable, ReentrancyGuard {
 
     IERC20 public png;
     ITreasuryVester public treasuryVester;
-    MiniChefV2 public chef;
+    IMiniChefV2 public chef;
     address public treasury;
 
     uint constant PNG_INITIAL_MAX_SUPPLY = 538_000_000e18;
@@ -53,7 +53,7 @@ contract TreasuryVesterProxy is Ownable, ReentrancyGuard {
         png = IERC20(_png);
         treasuryVester = ITreasuryVester(_treasuryVester);
         treasury = _treasury;
-        chef = MiniChefV2(_chef);
+        chef = IMiniChefV2(_chef);
     }
 
     function init() external onlyOwner {
