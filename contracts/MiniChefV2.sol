@@ -104,6 +104,11 @@ contract MiniChefV2 is Ownable {
         pools = poolInfo.length;
     }
 
+    /// @notice Returns list of all lpTokens for ease of interfacing
+    function lpTokens() external view returns (IERC20[] memory) {
+        return lpToken;
+    }
+
     /// @notice Returns the status of an address as a funder
     function isFunder(address _funder) external view returns (bool allowed) {
         allowed = funder[_funder];
