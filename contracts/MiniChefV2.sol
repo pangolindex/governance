@@ -69,7 +69,7 @@ contract MiniChefV2 is Ownable {
     uint256 private constant ACC_REWARD_PRECISION = 1e12;
 
     /// @dev Block time when the rewards per second stops
-    uint256 rewardsExpiration;
+    uint256 public rewardsExpiration;
 
     event Deposit(address indexed user, uint256 indexed pid, uint256 amount, address indexed to);
     event Withdraw(address indexed user, uint256 indexed pid, uint256 amount, address indexed to);
@@ -107,6 +107,11 @@ contract MiniChefV2 is Ownable {
     /// @notice Returns list of all lpTokens for ease of interfacing
     function lpTokens() external view returns (IERC20[] memory) {
         return lpToken;
+    }
+
+    /// @notice Returns list of all pool infos for ease of interfacing
+    function poolInfos() external view returns (PoolInfo[] memory) {
+        return poolInfo;
     }
 
     /// @notice Returns the status of an address as a funder
