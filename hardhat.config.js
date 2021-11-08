@@ -78,7 +78,7 @@ module.exports = {
       url: 'http://127.0.0.1:8545',
       gasPrice: 225000000000,
       chainId: 43114,
-      // accounts: [""]
+      timeout: 1200000
     },
     fuji: {
       url: 'https://api.avax-test.network/ext/bc/C/rpc',
