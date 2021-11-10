@@ -309,6 +309,14 @@ contract MiniChefV2 is Ownable {
         emit Deposit(msg.sender, pid, amount, to);
     }
 
+    function depositWithPermit(uint256 pid, uint256 amount, address to, uint deadline, uint8 v, bytes32 r, bytes32 s) external {
+        // permit
+        lpToken[pid].permit(msg.sender, address(this), amount, deadline, v, r, s);
+
+        // deposit
+        deposit(pid, amount, to);
+    }
+
     /// @notice Withdraw LP tokens from MCV2.
     /// @param pid The index of the pool. See `poolInfo`.
     /// @param amount LP token amount to withdraw.
