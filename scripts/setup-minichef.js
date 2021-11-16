@@ -62,8 +62,8 @@ async function main() {
     const PNG = await ethers.getContractFactory("Png");
     const png = await PNG.attach(PNG_ADDRESS);
 
-    // Multisig with 1m PNG
-    const acc = '0x6cdD4B54562019902C03e5BE4BB4C5800A379185';
+    // Large PNG holder
+    const acc = '0x348b11CF986e8E1CdA10c4A7E375aA252b47fc55';
 
     await network.provider.request({
         method: "hardhat_impersonateAccount",
@@ -76,6 +76,9 @@ async function main() {
         to: pngWhale._address,
         value: ethers.utils.parseEther('1000.0')
     });
+
+    // Self delegate
+    await png.connect(pngWhale).delegate(acc);
 
     console.log("Deploying contracts with the account:", deployer.address);
 
@@ -112,7 +115,6 @@ async function main() {
     // Add funder
     console.log(`Adding funders`);
     await miniChef.addFunder(treasuryVesterProxy.address);
-    await miniChef.addFunder(pngWhale._address); // for quick testing
     console.log(`Done`);
 
     // Set owners to timelock
@@ -145,7 +147,7 @@ async function main() {
         ethers.utils.defaultAbiCoder.encode(['address', 'uint256'], [TIMELOCK_ADDRESS, TWO_MILLION_PNG]),
         ethers.utils.defaultAbiCoder.encode(['address', 'uint256'], [miniChef.address, TWO_MILLION_PNG]),
         ethers.utils.defaultAbiCoder.encode(['address'], [treasuryVesterProxy.address]),
-        ethers.constants.AddressZero, // empty bytes
+        0, // empty bytes
         ethers.utils.defaultAbiCoder.encode(['uint256', 'uint256'], [TWO_MILLION_PNG, 30 * 86400]),
         ethers.utils.defaultAbiCoder.encode(['uint256[]', 'address[]', 'address[]'], [
             poolConfig.map(entry => entry[0]),
@@ -155,8 +157,38 @@ async function main() {
         ethers.utils.defaultAbiCoder.encode(['address'], [PANGOLIN_MULTISIG])
     ];
 
+    const description =
+`# Pangolin V2 and The New Tokenomics
+TLDR: Implement Pangolin tokenomics change with improved farming system
+
+## What is the goal?
+Pangolin is moving to a significantly improved tokenomics system allowing the protocol to best compete with other DEXes on Avalanche and strategically allocate rewards to liquidity providers! 
+
+## What is changing?
+The system powering farming rewards will require one final migration and will receive boosted rewards for the first 30 days to compensate farmers for the transition. 
+
+This will shorten the total token emission period because emitting PNG over 28 years is too long of a timeframe for DeFi. The diluted market cap of Pangolin will change from 530m PNG to 230m PNG over the course of approximately 3 years from now. 
+
+This will also grow the treasury from 13m PNG to 30m PNG over the course of 29 months, enabling Pangolin to further innovate and continue to add new features and improve the user experience.
+ 
+The farming pools will be focused to 37 farms at launch and can still be amended by the community via the Pangolin multisig.
+
+## How does this impact users?
+Users will benefit from increased rewards and more competitive farms. 
+
+Users will need to take a single action and migrate their funds from the current farm into the new farm (note: this will need to be done for each pool a user is in).
+
+## Technical Proposal
+We will deploy MiniChefV2 which will manage the farming rewards. 
+
+We will implement TreasuryVesterProxy around the TreasuryVester that will divert funds over the course of 960 days to farming rewards, the treasury, and burning excess PNG. 
+
+We will transfer 2M PNG from CommunityTreasury to MiniChefV2 boosting the first 30 days of the new rewards system. 
+
+We will add 37 farming pools with their respective weights.`;
+
     console.log(`Submitting proposal`);
-    await governorAlpha.connect(pngWhale).propose(targets, values, sigs, callDatas, '');
+    await governorAlpha.connect(pngWhale).propose(targets, values, sigs, callDatas, description);
     const proposalNumber = await governorAlpha.proposalCount();
     console.log(`Made proposal #${proposalNumber}`);
 
