@@ -1,8 +1,8 @@
 pragma solidity ^0.7.6;
 
-import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "openzeppelin-contracts-legacy/access/Ownable.sol";
+import "openzeppelin-contracts-legacy/token/ERC20/SafeERC20.sol";
+import "openzeppelin-contracts-legacy/token/ERC20/IERC20.sol";
 
 /**
  * Custodian of community's PNG. Deploy this contract, then change the owner to be a

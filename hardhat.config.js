@@ -37,6 +37,9 @@ module.exports = {
         version: "0.6.11"
       },
       {
+        version: "0.6.12"
+      },
+      {
         version: "0.7.4"
       },
       {
@@ -67,23 +70,20 @@ module.exports = {
   },
   networks: {
     hardhat: {
-      gasPrice: 225000000000,
       chainId: 43114,
       initialDate: "2021-01-01" // Used for tests
     },
     local: {
       url: 'http://127.0.0.1:8545',
-      gasPrice: 225000000000,
       chainId: 43114,
-      // accounts: [""]
+      timeout: 1200000
     },
     fuji: {
       url: 'https://api.avax-test.network/ext/bc/C/rpc',
-      gasPrice: 225000000000
+      chainId: 43113
     },
     mainnet: {
-      url: 'https://api.avax.network/ext/bc/C/rpc',
-      gasPrice: 225000000000
+      url: 'https://api.avax.network/ext/bc/C/rpc'
     }
   }
 };

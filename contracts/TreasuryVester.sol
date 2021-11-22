@@ -1,10 +1,10 @@
 pragma solidity ^0.7.6;
 
-import "@openzeppelin/contracts/math/SafeMath.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "openzeppelin-contracts-legacy/math/SafeMath.sol";
+import "openzeppelin-contracts-legacy/access/Ownable.sol";
+import "openzeppelin-contracts-legacy/utils/ReentrancyGuard.sol";
+import "openzeppelin-contracts-legacy/token/ERC20/SafeERC20.sol";
+import "openzeppelin-contracts-legacy/token/ERC20/IERC20.sol";
 
 /**
  * Contract to control the release of PNG.
