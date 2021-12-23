@@ -10,42 +10,66 @@ import "./interfaces/IRewarder.sol";
 contract RewarderSimple is IRewarder {
     using BoringMath for uint256;
     using BoringERC20 for IERC20;
-    uint256 private immutable rewardMultiplier;
-    IERC20 private immutable rewardToken;
-    uint256 private immutable REWARD_TOKEN_DIVISOR;
+
+    IERC20[] private rewardTokens;
+    uint256[] private rewardMultipliers;
     address private immutable MASTERCHEF_V2;
 
-    constructor (uint256 _rewardMultiplier, address _rewardToken, uint256 _rewardDecimals, address _MASTERCHEF_V2) public {
-        require(_rewardMultiplier > 0, "RewarderSimple::Invalid multiplier");
-        require(_rewardDecimals <= 77, "RewarderSimple::Invalid decimals");
+    /// @notice Should match the precision of the base reward token (PNG)
+    uint256 private constant REWARD_TOKEN_DIVISOR = 1e18;
+
+    /// @param _rewardMultipliers The amount of each reward token to be claimable for every 1 base reward (PNG) being claimed
+    /// @notice Each reward multiplier should have a precision matching that individual token
+    constructor (
+        address[] memory _rewardTokens,
+        uint256[] memory _rewardMultipliers,
+        address _MASTERCHEF_V2
+    ) public {
         require(
-            _rewardToken != address(0)
-            && _MASTERCHEF_V2 != address(0),
-            "RewarderSimple::Cannot construct with zero address"
+            _rewardTokens.length > 0
+             && _rewardTokens.length == _rewardMultipliers.length,
+            "RewarderSimple::Invalid input lengths"
         );
 
-        rewardMultiplier = _rewardMultiplier;
-        rewardToken = IERC20(_rewardToken);
-        REWARD_TOKEN_DIVISOR = 10 ** _rewardDecimals;
+        require(
+            _MASTERCHEF_V2 != address(0),
+            "RewarderSimple::Invalid chef address"
+        );
+
+        for (uint256 i; i < _rewardTokens.length; i++) {
+            require(_rewardTokens[i] != address(0), "RewarderSimple::Cannot reward zero address");
+            require(_rewardMultipliers[i] > 0, "RewarderSimple::Invalid multiplier");
+
+            rewardTokens[i] = IERC20(_rewardTokens[i]);
+        }
+
+        rewardMultipliers = _rewardMultipliers;
         MASTERCHEF_V2 = _MASTERCHEF_V2;
     }
 
     function onReward(uint256, address, address to, uint256 rewardAmount, uint256) onlyMCV2 override external {
-        uint256 pendingReward = rewardAmount.mul(rewardMultiplier) / REWARD_TOKEN_DIVISOR;
-        uint256 rewardBal = rewardToken.balanceOf(address(this));
-        if (pendingReward > rewardBal) {
-            rewardToken.safeTransfer(to, rewardBal);
-        } else {
-            rewardToken.safeTransfer(to, pendingReward);
+        for (uint256 i; i < rewardTokens.length; i++) {
+            uint256 pendingReward = rewardAmount.mul(rewardMultipliers[i]) / REWARD_TOKEN_DIVISOR;
+            uint256 rewardBal = rewardTokens[i].balanceOf(address(this));
+            if (pendingReward > rewardBal) {
+                rewardTokens[i].safeTransfer(to, rewardBal);
+            } else {
+                rewardTokens[i].safeTransfer(to, pendingReward);
+            }
         }
     }
 
-    function pendingTokens(uint256, address, uint256 rewardAmount) override external view returns (IERC20[] memory rewardTokens, uint256[] memory rewardAmounts) {
-        IERC20[] memory _rewardTokens = new IERC20[](1);
-        _rewardTokens[0] = (rewardToken);
-        uint256[] memory _rewardAmounts = new uint256[](1);
-        _rewardAmounts[0] = rewardAmount.mul(rewardMultiplier) / REWARD_TOKEN_DIVISOR;
-        return (_rewardTokens, _rewardAmounts);
+    function pendingTokens(uint256, address, uint256 rewardAmount) override external view returns (IERC20[] memory tokens, uint256[] memory amounts) {
+        for (uint256 i; i < rewardTokens.length; i++) {
+            uint256 pendingReward = rewardAmount.mul(rewardMultipliers[i]) / REWARD_TOKEN_DIVISOR;
+            uint256 rewardBal = rewardTokens[i].balanceOf(address(this));
+            if (pendingReward > rewardBal) {
+                amounts[i] = rewardBal;
+            } else {
+                amounts[i] = pendingReward;
+            }
+        }
+        return (rewardTokens, amounts);
     }
 
     modifier onlyMCV2 {
