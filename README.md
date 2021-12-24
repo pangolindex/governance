@@ -20,6 +20,8 @@ LiquidityPoolManager:         `0x05191198A2047c1Ad440161123B29e839B219476`
 
 PangolinVoteCalculator: `0xAE9D046c27A824dE4B5BABEA75D0754132664d9F`
 
+MiniChefV2: `0x1f806f7C8dED893fd3caE279191ad7Aa3798E928`
+
 ## Attribution
 
 Forked from
