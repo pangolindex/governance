@@ -13,17 +13,22 @@ contract RewarderSimple is IRewarder {
 
     IERC20[] private rewardTokens;
     uint256[] private rewardMultipliers;
-    address private immutable MASTERCHEF_V2;
+    address private immutable CHEF_V2;
 
-    /// @notice Should match the precision of the base reward token (PNG)
-    uint256 private constant REWARD_TOKEN_DIVISOR = 1e18;
+    /// @dev Should match the precision of the base reward token (PNG)
+    uint256 private constant BASE_REWARD_TOKEN_DIVISOR = 1e18;
 
-    /// @param _rewardMultipliers The amount of each reward token to be claimable for every 1 base reward (PNG) being claimed
+    /// @dev Additional reward quantities that might be owed to users trying to claim after funds have been exhausted
+    mapping(address => uint256[]) private rewardDebts;
+
+    /// @param _rewardTokens The address of each additional reward token
+    /// @param _rewardMultipliers The amount of each additional reward token to be claimable for every 1 base reward (PNG) being claimed
+    /// @param _chefV2 The address of the chef contract where the base reward (PNG) is being emitted
     /// @notice Each reward multiplier should have a precision matching that individual token
     constructor (
         address[] memory _rewardTokens,
         uint256[] memory _rewardMultipliers,
-        address _MASTERCHEF_V2
+        address _chefV2
     ) public {
         require(
             _rewardTokens.length > 0
@@ -32,7 +37,7 @@ contract RewarderSimple is IRewarder {
         );
 
         require(
-            _MASTERCHEF_V2 != address(0),
+            _chefV2 != address(0),
             "RewarderSimple::Invalid chef address"
         );
 
@@ -44,24 +49,27 @@ contract RewarderSimple is IRewarder {
         }
 
         rewardMultipliers = _rewardMultipliers;
-        MASTERCHEF_V2 = _MASTERCHEF_V2;
+        CHEF_V2 = _chefV2;
     }
 
-    function onReward(uint256, address, address to, uint256 rewardAmount, uint256) onlyMCV2 override external {
+    function onReward(uint256, address user, address to, uint256 rewardAmount, uint256) onlyMCV2 override external {
         for (uint256 i; i < rewardTokens.length; i++) {
-            uint256 pendingReward = rewardAmount.mul(rewardMultipliers[i]) / REWARD_TOKEN_DIVISOR;
+            uint256 pendingReward = rewardDebts[user][i] + rewardAmount.mul(rewardMultipliers[i]) / BASE_REWARD_TOKEN_DIVISOR;
             uint256 rewardBal = rewardTokens[i].balanceOf(address(this));
             if (pendingReward > rewardBal) {
+                rewardDebts[user][i] = pendingReward - rewardBal;
                 rewardTokens[i].safeTransfer(to, rewardBal);
             } else {
+                rewardDebts[user][i] = 0;
                 rewardTokens[i].safeTransfer(to, pendingReward);
             }
         }
     }
 
-    function pendingTokens(uint256, address, uint256 rewardAmount) override external view returns (IERC20[] memory tokens, uint256[] memory amounts) {
+    /// @notice Shows pending tokens that can be currently claimed
+    function pendingTokens(uint256, address user, uint256 rewardAmount) override external view returns (IERC20[] memory tokens, uint256[] memory amounts) {
         for (uint256 i; i < rewardTokens.length; i++) {
-            uint256 pendingReward = rewardAmount.mul(rewardMultipliers[i]) / REWARD_TOKEN_DIVISOR;
+            uint256 pendingReward = rewardDebts[user][i] + rewardAmount.mul(rewardMultipliers[i]) / BASE_REWARD_TOKEN_DIVISOR;
             uint256 rewardBal = rewardTokens[i].balanceOf(address(this));
             if (pendingReward > rewardBal) {
                 amounts[i] = rewardBal;
@@ -72,9 +80,19 @@ contract RewarderSimple is IRewarder {
         return (rewardTokens, amounts);
     }
 
+    /// @notice Shows pending tokens including rewards accrued after the funding has been exhausted
+    /// @notice these extra rewards could be claimed if more funding is added to the contract
+    function pendingTokensDebt(uint256, address user, uint256 rewardAmount) external view returns (IERC20[] memory tokens, uint256[] memory amounts) {
+        for (uint256 i; i < rewardTokens.length; i++) {
+            uint256 pendingReward = rewardDebts[user][i] + rewardAmount.mul(rewardMultipliers[i]) / BASE_REWARD_TOKEN_DIVISOR;
+            amounts[i] = pendingReward;
+        }
+        return (rewardTokens, amounts);
+    }
+
     modifier onlyMCV2 {
         require(
-            msg.sender == MASTERCHEF_V2,
+            msg.sender == CHEF_V2,
             "Only MCV2 can call this function."
         );
         _;
