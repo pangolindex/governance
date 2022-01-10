@@ -26,7 +26,7 @@ contract RewarderSimple is IRewarder {
     /// @param _chefV2 The address of the chef contract where the base reward (PNG) is being emitted
     /// @notice Each reward multiplier should have a precision matching that individual token
     constructor (
-        address[] memory _rewardTokens,
+        IERC20[] memory _rewardTokens,
         uint256[] memory _rewardMultipliers,
         address _chefV2
     ) public {
@@ -44,10 +44,9 @@ contract RewarderSimple is IRewarder {
         for (uint256 i; i < _rewardTokens.length; i++) {
             require(_rewardTokens[i] != address(0), "RewarderSimple::Cannot reward zero address");
             require(_rewardMultipliers[i] > 0, "RewarderSimple::Invalid multiplier");
-
-            rewardTokens[i] = IERC20(_rewardTokens[i]);
         }
 
+        rewardTokens = _rewardTokens;
         rewardMultipliers = _rewardMultipliers;
         CHEF_V2 = _chefV2;
     }
