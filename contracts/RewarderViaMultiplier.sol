@@ -7,7 +7,7 @@ import "@boringcrypto/boring-solidity/contracts/libraries/BoringMath.sol";
 
 import "./interfaces/IRewarder.sol";
 
-contract RewarderSimple is IRewarder {
+contract RewarderViaMultiplier is IRewarder {
     using BoringMath for uint256;
     using BoringERC20 for IERC20;
 
@@ -19,7 +19,7 @@ contract RewarderSimple is IRewarder {
     uint256 private constant BASE_REWARD_TOKEN_DIVISOR = 1e18;
 
     /// @dev Additional reward quantities that might be owed to users trying to claim after funds have been exhausted
-    mapping(address => uint256[]) private rewardDebts;
+    mapping(address => mapping(uint256 => uint256)) private rewardDebts;
 
     /// @param _rewardTokens The address of each additional reward token
     /// @param _rewardMultipliers The amount of each additional reward token to be claimable for every 1 base reward (PNG) being claimed
@@ -42,7 +42,7 @@ contract RewarderSimple is IRewarder {
         );
 
         for (uint256 i; i < _rewardTokens.length; i++) {
-            require(_rewardTokens[i] != address(0), "RewarderSimple::Cannot reward zero address");
+            require(address(_rewardTokens[i]) != address(0), "RewarderSimple::Cannot reward zero address");
             require(_rewardMultipliers[i] > 0, "RewarderSimple::Invalid multiplier");
         }
 
@@ -67,6 +67,7 @@ contract RewarderSimple is IRewarder {
 
     /// @notice Shows pending tokens that can be currently claimed
     function pendingTokens(uint256, address user, uint256 rewardAmount) override external view returns (IERC20[] memory tokens, uint256[] memory amounts) {
+        amounts = new uint256[](rewardTokens.length);
         for (uint256 i; i < rewardTokens.length; i++) {
             uint256 pendingReward = rewardDebts[user][i] + rewardAmount.mul(rewardMultipliers[i]) / BASE_REWARD_TOKEN_DIVISOR;
             uint256 rewardBal = rewardTokens[i].balanceOf(address(this));
@@ -82,6 +83,7 @@ contract RewarderSimple is IRewarder {
     /// @notice Shows pending tokens including rewards accrued after the funding has been exhausted
     /// @notice these extra rewards could be claimed if more funding is added to the contract
     function pendingTokensDebt(uint256, address user, uint256 rewardAmount) external view returns (IERC20[] memory tokens, uint256[] memory amounts) {
+        amounts = new uint256[](rewardTokens.length);
         for (uint256 i; i < rewardTokens.length; i++) {
             uint256 pendingReward = rewardDebts[user][i] + rewardAmount.mul(rewardMultipliers[i]) / BASE_REWARD_TOKEN_DIVISOR;
             amounts[i] = pendingReward;
