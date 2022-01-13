@@ -14,9 +14,7 @@ contract RewarderViaMultiplier is IRewarder {
     IERC20[] public rewardTokens;
     uint256[] public rewardMultipliers;
     address private immutable CHEF_V2;
-
-    /// @dev Should match the precision of the base reward token (PNG)
-    uint256 private constant BASE_REWARD_TOKEN_DIVISOR = 1e18;
+    uint256 private immutable BASE_REWARD_TOKEN_DIVISOR;
 
     // @dev Ceiling on additional rewards to prevent a self-inflicted DOS via gas limitations when claim
     uint256 private constant MAX_REWARDS = 100;
@@ -26,11 +24,13 @@ contract RewarderViaMultiplier is IRewarder {
 
     /// @param _rewardTokens The address of each additional reward token
     /// @param _rewardMultipliers The amount of each additional reward token to be claimable for every 1 base reward (PNG) being claimed
+    /// @param _baseRewardTokenDecimals The decimal precision of the base reward (PNG) being emitted
     /// @param _chefV2 The address of the chef contract where the base reward (PNG) is being emitted
     /// @notice Each reward multiplier should have a precision matching that individual token
     constructor (
         IERC20[] memory _rewardTokens,
         uint256[] memory _rewardMultipliers,
+        uint256 _baseRewardTokenDecimals,
         address _chefV2
     ) public {
         require(
@@ -38,6 +38,11 @@ contract RewarderViaMultiplier is IRewarder {
             && _rewardTokens.length <= MAX_REWARDS
             && _rewardTokens.length == _rewardMultipliers.length,
             "RewarderSimple::Invalid input lengths"
+        );
+
+        require(
+            _baseRewardTokenDecimals <= 77,
+            "RewarderSimple::Invalid base reward token decimals"
         );
 
         require(
@@ -52,6 +57,7 @@ contract RewarderViaMultiplier is IRewarder {
 
         rewardTokens = _rewardTokens;
         rewardMultipliers = _rewardMultipliers;
+        BASE_REWARD_TOKEN_DIVISOR = 10 ** _baseRewardTokenDecimals;
         CHEF_V2 = _chefV2;
     }
 
