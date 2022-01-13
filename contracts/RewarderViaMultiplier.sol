@@ -11,8 +11,8 @@ contract RewarderViaMultiplier is IRewarder {
     using BoringMath for uint256;
     using BoringERC20 for IERC20;
 
-    IERC20[] private rewardTokens;
-    uint256[] private rewardMultipliers;
+    IERC20[] public rewardTokens;
+    uint256[] public rewardMultipliers;
     address private immutable CHEF_V2;
 
     /// @dev Should match the precision of the base reward token (PNG)
@@ -89,6 +89,16 @@ contract RewarderViaMultiplier is IRewarder {
             amounts[i] = pendingReward;
         }
         return (rewardTokens, amounts);
+    }
+    
+    /// @notice Overloaded getter for easy access to the reward tokens
+    function getRewardTokens() external view returns (IERC20[] memory) {
+        return rewardTokens;
+    }
+
+    /// @notice Overloaded getter for easy access to the reward multipliers
+    function getRewardMultipliers() external view returns (uint256[] memory) {
+        return rewardMultipliers;
     }
 
     modifier onlyMCV2 {
