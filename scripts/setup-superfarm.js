@@ -43,6 +43,7 @@ async function main() {
     const rewarderViaMultiplier1 = await RewarderViaMultiplier.deploy(
         [PNG_ADDRESS], // LOOT
         ["2" + "0".repeat(18)], // 2x @ 18 decimals
+        18,
         miniChef.address
     );
     await rewarderViaMultiplier1.deployed();
@@ -64,6 +65,7 @@ async function main() {
     const rewarderViaMultiplier2 = await RewarderViaMultiplier.deploy(
         [PNG_ADDRESS, USDTe_ADDRESS],
         ["15" + "0".repeat(17), "1" + "0".repeat(6)],
+        18,
         miniChef.address
     );
     await rewarderViaMultiplier2.deployed();
