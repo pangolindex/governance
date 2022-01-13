@@ -37,22 +37,22 @@ contract RewarderViaMultiplier is IRewarder {
             _rewardTokens.length > 0
             && _rewardTokens.length <= MAX_REWARDS
             && _rewardTokens.length == _rewardMultipliers.length,
-            "RewarderSimple::Invalid input lengths"
+            "RewarderViaMultiplier::Invalid input lengths"
         );
 
         require(
             _baseRewardTokenDecimals <= 77,
-            "RewarderSimple::Invalid base reward token decimals"
+            "RewarderViaMultiplier::Invalid base reward token decimals"
         );
 
         require(
             _chefV2 != address(0),
-            "RewarderSimple::Invalid chef address"
+            "RewarderViaMultiplier::Invalid chef address"
         );
 
         for (uint256 i; i < _rewardTokens.length; ++i) {
-            require(address(_rewardTokens[i]) != address(0), "RewarderSimple::Cannot reward zero address");
-            require(_rewardMultipliers[i] > 0, "RewarderSimple::Invalid multiplier");
+            require(address(_rewardTokens[i]) != address(0), "RewarderViaMultiplier::Cannot reward zero address");
+            require(_rewardMultipliers[i] > 0, "RewarderViaMultiplier::Invalid multiplier");
         }
 
         rewardTokens = _rewardTokens;
