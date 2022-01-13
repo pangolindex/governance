@@ -53,7 +53,7 @@ contract RewarderViaMultiplier is IRewarder {
 
     function onReward(uint256, address user, address to, uint256 rewardAmount, uint256) onlyMCV2 override external {
         for (uint256 i; i < rewardTokens.length; ++i) {
-            uint256 pendingReward = rewardDebts[user][i] + rewardAmount.mul(rewardMultipliers[i]) / BASE_REWARD_TOKEN_DIVISOR;
+            uint256 pendingReward = rewardDebts[user][i].add(rewardAmount.mul(rewardMultipliers[i])) / BASE_REWARD_TOKEN_DIVISOR;
             uint256 rewardBal = rewardTokens[i].balanceOf(address(this));
             if (pendingReward > rewardBal) {
                 rewardDebts[user][i] = pendingReward - rewardBal;
@@ -69,7 +69,7 @@ contract RewarderViaMultiplier is IRewarder {
     function pendingTokens(uint256, address user, uint256 rewardAmount) override external view returns (IERC20[] memory tokens, uint256[] memory amounts) {
         amounts = new uint256[](rewardTokens.length);
         for (uint256 i; i < rewardTokens.length; ++i) {
-            uint256 pendingReward = rewardDebts[user][i] + rewardAmount.mul(rewardMultipliers[i]) / BASE_REWARD_TOKEN_DIVISOR;
+            uint256 pendingReward = rewardDebts[user][i].add(rewardAmount.mul(rewardMultipliers[i])) / BASE_REWARD_TOKEN_DIVISOR;
             uint256 rewardBal = rewardTokens[i].balanceOf(address(this));
             if (pendingReward > rewardBal) {
                 amounts[i] = rewardBal;
@@ -85,7 +85,7 @@ contract RewarderViaMultiplier is IRewarder {
     function pendingTokensDebt(uint256, address user, uint256 rewardAmount) external view returns (IERC20[] memory tokens, uint256[] memory amounts) {
         amounts = new uint256[](rewardTokens.length);
         for (uint256 i; i < rewardTokens.length; ++i) {
-            uint256 pendingReward = rewardDebts[user][i] + rewardAmount.mul(rewardMultipliers[i]) / BASE_REWARD_TOKEN_DIVISOR;
+            uint256 pendingReward = rewardDebts[user][i].add(rewardAmount.mul(rewardMultipliers[i])) / BASE_REWARD_TOKEN_DIVISOR;
             amounts[i] = pendingReward;
         }
         return (rewardTokens, amounts);
