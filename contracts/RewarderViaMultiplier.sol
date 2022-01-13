@@ -18,6 +18,9 @@ contract RewarderViaMultiplier is IRewarder {
     /// @dev Should match the precision of the base reward token (PNG)
     uint256 private constant BASE_REWARD_TOKEN_DIVISOR = 1e18;
 
+    // @dev Ceiling on additional rewards to prevent a self-inflicted DOS via gas limitations when claim
+    uint256 private constant MAX_REWARDS = 100;
+
     /// @dev Additional reward quantities that might be owed to users trying to claim after funds have been exhausted
     mapping(address => mapping(uint256 => uint256)) private rewardDebts;
 
@@ -32,7 +35,8 @@ contract RewarderViaMultiplier is IRewarder {
     ) public {
         require(
             _rewardTokens.length > 0
-             && _rewardTokens.length == _rewardMultipliers.length,
+            && _rewardTokens.length <= MAX_REWARDS
+            && _rewardTokens.length == _rewardMultipliers.length,
             "RewarderSimple::Invalid input lengths"
         );
 
