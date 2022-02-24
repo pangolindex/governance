@@ -1,7 +1,7 @@
 const { ethers } = require('hardhat');
 
 const {
-    MINICHEF_V2, PNG_ADDRESS,
+    MINICHEF_V2_ADDRESS, PNG_ADDRESS,
 } = require('./mainnet-constants');
 
 async function main() {
@@ -15,7 +15,7 @@ async function main() {
         }
     ];
     const baseRewardDecimals = 18; // This likely won't change
-    const chefAddress = MINICHEF_V2; // This likely won't change
+    const chefAddress = MINICHEF_V2_ADDRESS; // This likely won't change
     // ---------------------------------------------------------------
 
     const [deployer] = await ethers.getSigners();
