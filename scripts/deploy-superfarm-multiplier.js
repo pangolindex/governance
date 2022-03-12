@@ -19,17 +19,17 @@ async function main() {
         // WAVAX-UST
         [
             {
-                address: '0x120AD3e5A7c796349e591F1570D9f7980F4eA9cb', // LUNA (265.33)
+                reward: '0x120AD3e5A7c796349e591F1570D9f7980F4eA9cb', // LUNA (265.33)
                 multiplier: '35' + '0'.repeat(2)
             },
             {
-                address: '0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7', // WAVAX (1247.13)
+                reward: '0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7', // WAVAX (1247.13)
                 multiplier: '1644' + '0'.repeat(13)
             },
         ],
         // WAVAX-sAVAX
         [{
-            address: '0x8729438eb15e2c8b576fcc6aecda6a148776c0f5', // QI (2,100,000)
+            reward: '0x8729438eb15e2c8b576fcc6aecda6a148776c0f5', // QI (2,100,000)
             multiplier: '2316497' + '0'.repeat(13) // 23.16497
         }],
     ];
@@ -42,8 +42,8 @@ async function main() {
     for (const config of additionalRewardConfig) {
         // Get rewards info
         const symbols = [];
-        for (const address of config.map(c => c.address)) {
-            const rewardSymbol = await Token.attach(address).symbol();
+        for (const rewardAddress of config.map(c => c.reward)) {
+            const rewardSymbol = await Token.attach(rewardAddress).symbol();
             symbols.push(rewardSymbol);
         }
 
@@ -51,7 +51,7 @@ async function main() {
         console.log(`Deploying RewarderViaMultiplier with ${config.length} additional rewards (${symbols.join(',')}) ...`);
         const RewarderViaMultiplier = await ethers.getContractFactory('RewarderViaMultiplier');
         const rewarderViaMultiplier = await RewarderViaMultiplier.deploy(
-            config.map(entry => entry.address),
+            config.map(entry => entry.reward),
             config.map(entry => entry.multiplier),
             baseRewardDecimals,
             chefAddress
